@@ -6,26 +6,47 @@ terminal font for all features.
 
 ## Install
 
+Linux and macOS:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/olli-io/forecastui/main/install.sh | bash
 ```
 
-Builds from source into `~/.local/bin` (override with `BINDIR` or `PREFIX`);
-needs `git` and a Go toolchain. It is a bash script, so Linux, macOS, WSL and
-Git Bash — not PowerShell or `cmd`. The same thing without the pipe:
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/olli-io/forecastui/main/install.ps1 | iex
+```
+
+On a platform with no published binary, `install.sh`
+builds from source instead, which needs the Go toolchain and `git`.
+
+[release]: https://github.com/olli-io/forecastui/releases/latest
+[releases page]: https://github.com/olli-io/forecastui/releases
+
+### From source
+
+> [!NOTE]
+> Requires the Go toolchain and `git`.
 
 ```bash
 go install github.com/olli-io/forecastui/cmd/forecastui@latest
 ```
 
-That needs only a Go toolchain and works everywhere, dropping the binary in
-`$(go env GOPATH)/bin`. Or from a clone:
+Unlike the install scripts above, this leaves `PATH` alone. Add it to run 'forecastui' in terminal:
 
 ```bash
-go build -o forecastui ./cmd/forecastui
+# in ~/.bashrc or ~/.zshrc
+export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
-## Use
+```powershell
+[Environment]::SetEnvironmentVariable('Path',
+  "$([Environment]::GetEnvironmentVariable('Path', 'User'));$(go env GOPATH)\bin",
+  'User')
+```
+
+## Screenshot
 
 ![forecastui](docs/screenshot.png)
 
