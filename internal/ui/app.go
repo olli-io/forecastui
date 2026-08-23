@@ -280,10 +280,10 @@ func (a *App) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.moveCursor(-1)
 	case "right", "l":
 		a.moveCursor(1)
-	case "up", "H":
-		a.moveCursor(-a.dayStep())
-	case "down", "L":
+	case "up", "k", "L":
 		a.moveCursor(a.dayStep())
+	case "down", "j", "H":
+		a.moveCursor(-a.dayStep())
 	case "pgup":
 		a.moveCursor(-a.visible())
 	case "pgdown":

@@ -487,13 +487,17 @@ func TestVerticalArrowsStepADay(t *testing.T) {
 	if step < 2 {
 		t.Fatalf("a day should be more than one column, got %d", step)
 	}
-	press(a, "down")
-	if a.cursor != step {
-		t.Errorf("down moved to %d, want a day on at %d", a.cursor, step)
-	}
-	press(a, "up")
-	if a.cursor != 0 {
-		t.Errorf("up should come back to %d, got %d", 0, a.cursor)
+	// Each pair is the same step: the arrows, and the vim keys under them.
+	for _, keys := range [][2]string{{"up", "down"}, {"k", "j"}} {
+		on, back := keys[0], keys[1]
+		press(a, on)
+		if a.cursor != step {
+			t.Errorf("%s moved to %d, want a day on at %d", on, a.cursor, step)
+		}
+		press(a, back)
+		if a.cursor != 0 {
+			t.Errorf("%s should come back to 0, got %d", back, a.cursor)
+		}
 	}
 }
 
