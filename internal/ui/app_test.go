@@ -57,6 +57,10 @@ func keyCode(key string) rune {
 		return tea.KeyEnd
 	case "home":
 		return tea.KeyHome
+	case "up":
+		return tea.KeyUp
+	case "down":
+		return tea.KeyDown
 	}
 	return rune(key[0])
 }
@@ -327,5 +331,193 @@ func TestDetailFieldsKeepTheirWidth(t *testing.T) {
 	}
 	if i, j := strings.Index(first, "m/s"), strings.Index(second, "m/s"); i != j {
 		t.Errorf("wind moved from column %d to %d:\n%s\n%s", i, j, first, second)
+	}
+}
+
+// cached builds the message the cache read sends back, for a forecast saved
+// the given time ago.
+func cached(a *App, age time.Duration) cachedMsg {
+	return cachedMsg{
+		place: a.place, span: a.span,
+		hours: demoHours(a.span.Hours), at: time.Now().Add(-age),
+	}
+}
+
+func TestCurrentCacheIsNotRefetched(t *testing.T) {
+	a := New(geo.Place{Name: "Turku", Lat: 60.4518, Lon: 22.2666},
+		Span{Hours: 48}, &geo.Config{}, true).(*App)
+	_, cmd := a.Update(cached(a, time.Minute))
+	if cmd != nil {
+		t.Error("a forecast saved a minute ago should be used as it stands")
+	}
+	if len(a.hours) == 0 {
+		t.Error("the cached forecast should be on screen")
+	}
+	if a.stale || a.loading {
+		t.Errorf("current data is neither stale nor loading: stale=%v loading=%v",
+			a.stale, a.loading)
+	}
+}
+
+func TestOutdatedCacheIsRefetched(t *testing.T) {
+	a := New(geo.Place{Name: "Turku", Lat: 60.4518, Lon: 22.2666},
+		Span{Hours: 48}, &geo.Config{}, true).(*App)
+	_, cmd := a.Update(cached(a, 2*time.Hour))
+	if cmd == nil {
+		t.Error("a two-hour-old forecast should be refetched")
+	}
+	if !a.stale || !a.loading {
+		t.Errorf("outdated data is shown as stale while it reloads: stale=%v loading=%v",
+			a.stale, a.loading)
+	}
+}
+
+func TestEmptyCacheStillFetches(t *testing.T) {
+	a := New(geo.Place{Name: "Turku"}, Span{Hours: 48}, &geo.Config{}, true).(*App)
+	_, cmd := a.Update(cachedMsg{place: a.place, span: a.span})
+	if cmd == nil {
+		t.Error("nothing in the cache means the forecast has to be fetched")
+	}
+}
+
+// The cache is read per span, so a reply for the range that was tabbed away
+// from must not be drawn over the one now on screen.
+func TestCacheForAnotherSpanIsIgnored(t *testing.T) {
+	a := New(geo.Place{Name: "Turku"}, Span{Hours: 48}, &geo.Config{}, true).(*App)
+	msg := cachedMsg{place: a.place, span: Span{Hours: 168},
+		hours: demoHours(4), at: time.Now()}
+	if _, cmd := a.Update(msg); cmd != nil {
+		t.Error("a reply for another range should not drive a fetch")
+	}
+	if len(a.hours) != 0 {
+		t.Error("a reply for another range should not be drawn")
+	}
+}
+
+func TestRefreshIsRateLimited(t *testing.T) {
+	a := newTestApp(t, 80, 24, 48)
+	a.fetched = time.Now().Add(-2 * time.Hour) // stale, so freshness is not what stops it
+	a.lastFet = time.Now().Add(-10 * time.Second)
+	if cmd := a.maybeFetch(); cmd != nil {
+		t.Error("a request sent ten seconds ago should not be repeated")
+	}
+	a.lastFet = time.Now().Add(-2 * minRefresh)
+	if cmd := a.maybeFetch(); cmd == nil {
+		t.Error("past the floor a stale forecast should be refetched")
+	}
+}
+
+func TestRefreshKeepsCurrentData(t *testing.T) {
+	a := newTestApp(t, 80, 24, 48)
+	a.fetched = time.Now().Add(-time.Minute)
+	a.lastFet = time.Now().Add(-2 * minRefresh) // the floor is not what stops it
+	if cmd := a.maybeFetch(); cmd != nil {
+		t.Error("data fetched a minute ago should be left alone")
+	}
+	a.fetched = time.Now().Add(-2 * refreshEvery)
+	if cmd := a.maybeFetch(); cmd == nil {
+		t.Error("data past the refresh window should be fetched again")
+	}
+}
+
+// Switching place or range starts the rate limit over: the floor guards
+// repeat requests for one forecast, not the move to another.
+func TestSwitchingClearsTheRateLimit(t *testing.T) {
+	a := newTestApp(t, 80, 24, 48)
+	a.lastFet = time.Now()
+	a.reload()
+	if !a.lastFet.IsZero() || len(a.hours) != 0 {
+		t.Errorf("reload should drop the old forecast and its rate limit: %v", a.lastFet)
+	}
+	if cmd := a.maybeFetch(); cmd == nil {
+		t.Error("a range with nothing cached for it should be fetched")
+	}
+}
+
+// Tabbing to another range leaves the old chart up while the new one loads,
+// but the old data is never mistaken for an answer to the new range.
+func TestSwitchingRangeRefetches(t *testing.T) {
+	a := newTestApp(t, 100, 30, 48)
+	a.fetched, a.lastFet = time.Now(), time.Now()
+	press(a, "tab")
+	if len(a.cols) == 0 {
+		t.Error("the chart should stay up while the new range loads")
+	}
+	if a.current() {
+		t.Error("two days of hours are not a current forecast for the week")
+	}
+	if cmd := a.maybeFetch(); cmd == nil {
+		t.Error("the new range has to be fetched")
+	}
+}
+
+// A reply for the range that was tabbed away from must not be drawn under the
+// new range's header.
+func TestForecastForAnotherSpanIsIgnored(t *testing.T) {
+	a := newTestApp(t, 100, 30, 48)
+	before := len(a.cols)
+	a.span = Span{Hours: 168, Slots: true}
+	a.Update(forecastMsg{place: a.place, span: Span{Hours: 48}, hours: demoHours(4)})
+	if len(a.cols) != before {
+		t.Errorf("a superseded reply redrew the chart: %d columns, want %d",
+			len(a.cols), before)
+	}
+}
+
+// The detail box hangs under the chart and points back at the picked column.
+// Its arrow answers the cursor frame's, so the two are lit alike.
+func TestDetailArrowIsLit(t *testing.T) {
+	o := render.Opts{Start: 0, Count: 8, Cursor: 3}
+	var lit string
+	for _, sp := range cursorMark(o) {
+		if sp.Colour == render.Yellow {
+			lit += sp.Text
+		}
+	}
+	if lit != render.DownArrow {
+		t.Errorf("lit %q, want the detail box's arrow", lit)
+	}
+}
+
+// The vertical arrows step a day at a time, where the horizontal ones step an
+// hour: a strip that runs sideways has nothing else for them to do.
+func TestVerticalArrowsStepADay(t *testing.T) {
+	a := newTestApp(t, 100, 30, 48)
+	step := a.dayStep()
+	if step < 2 {
+		t.Fatalf("a day should be more than one column, got %d", step)
+	}
+	press(a, "down")
+	if a.cursor != step {
+		t.Errorf("down moved to %d, want a day on at %d", a.cursor, step)
+	}
+	press(a, "up")
+	if a.cursor != 0 {
+		t.Errorf("up should come back to %d, got %d", 0, a.cursor)
+	}
+}
+
+// Every key in the shortcut list is lit; the words saying what it does are
+// not, and neither is the punctuation between entries.
+func TestShortcutKeysAreLit(t *testing.T) {
+	a := newTestApp(t, 120, 30, 48)
+	for _, m := range []mode{modeChart, modeSearch, modeFav} {
+		a.mode = m
+		var lit, grey string
+		for _, sp := range a.keyLine() {
+			if sp.Colour == render.Yellow {
+				lit += sp.Text + " "
+			} else {
+				grey += sp.Text
+			}
+		}
+		for _, key := range a.footerHints() {
+			if key.key != "" && !strings.Contains(lit, key.key) {
+				t.Errorf("mode %d: %q is not lit (lit: %q)", m, key.key, lit)
+			}
+			if key.what != "" && !strings.Contains(grey, key.what) {
+				t.Errorf("mode %d: %q should stay grey (grey: %q)", m, key.what, grey)
+			}
+		}
 	}
 }

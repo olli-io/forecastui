@@ -94,8 +94,8 @@ func cursorMark(o render.Opts) render.Line {
 	return render.Line{
 		{Text: strings.Repeat("─", lead+(o.Cursor-o.Start)*render.Step), Colour: render.FG},
 		// The arrow belongs to the cursor frame it answers, not to the box it
-		// stands in, so it is painted in that frame's shade.
-		{Text: render.DownArrow, Colour: render.Dim},
+		// stands in, so it is lit the same way that frame's arrow is.
+		{Text: render.DownArrow, Colour: render.Yellow},
 	}
 }
 

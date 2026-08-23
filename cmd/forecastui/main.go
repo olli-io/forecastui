@@ -14,6 +14,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/olli-io/forecastui/internal/cache"
 	"github.com/olli-io/forecastui/internal/fmi"
 	"github.com/olli-io/forecastui/internal/geo"
 	"github.com/olli-io/forecastui/internal/ui"
@@ -177,14 +178,7 @@ func resolve(args []string, place string, lat, lon float64, hours int, week bool
 
 // runOnce prints a single chart, the way the shell script did.
 func runOnce(p geo.Place, span ui.Span, width int, nerd bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	from := time.Now().UTC().Truncate(time.Hour)
-	// The range is inclusive of both ends, so asking for 24 gives 24 bars.
-	to := from.Add(time.Duration(span.Hours-1) * time.Hour)
-
-	hours, err := fmi.NewClient().Fetch(ctx, p.Lat, p.Lon, from, to)
+	hours, err := onceHours(p, span)
 	if err != nil {
 		if errors.Is(err, fmi.ErrNoData) {
 			return errors.New("no forecast data returned for that location")
@@ -197,4 +191,29 @@ func runOnce(p geo.Place, span ui.Span, width int, nerd bool) error {
 	}
 	fmt.Println(out)
 	return nil
+}
+
+// onceHours is the forecast a one-shot chart draws. A run inside the refresh
+// window is answered from the cache: FMI publishes hourly, so a chart piped
+// into a prompt or a status bar every few seconds would otherwise ask them the
+// same question over and over for the same answer.
+func onceHours(p geo.Place, span ui.Span) ([]fmi.Hour, error) {
+	if hours, at, err := cache.Load(appName, p.Lat, p.Lon, span.Hours); err == nil &&
+		len(hours) > 0 && cache.Fresh(at) {
+		return hours, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	from := time.Now().UTC().Truncate(time.Hour)
+	// The range is inclusive of both ends, so asking for 24 gives 24 bars.
+	to := from.Add(time.Duration(span.Hours-1) * time.Hour)
+
+	hours, err := fmi.NewClient().Fetch(ctx, p.Lat, p.Lon, from, to)
+	if err != nil {
+		return nil, err
+	}
+	cache.Save(appName, p.Lat, p.Lon, span.Hours, hours) // a failed save is not fatal
+	return hours, nil
 }

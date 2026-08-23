@@ -47,3 +47,28 @@ func TestCursorOutsideTheWindowDrawsNothing(t *testing.T) {
 		}
 	}
 }
+
+// The arrow is what picks the column out; the frame around it stays a shade
+// darker than the chart, so only the arrow carries the accent.
+func TestCursorArrowIsLit(t *testing.T) {
+	cols := demoColumns(12)
+	o := Opts{Count: 8, Cursor: 3}
+	lines := Cursor(Chart(cols, NewScale(cols), o), cols, o)
+
+	foot := lines[len(lines)-1]
+	var lit, frame string
+	for _, s := range foot {
+		switch s.Colour {
+		case Yellow:
+			lit += s.Text
+		case Dim:
+			frame += s.Text
+		}
+	}
+	if lit != "▲" {
+		t.Errorf("lit %q, want the cursor arrow", lit)
+	}
+	if !strings.Contains(frame, "└") || !strings.Contains(frame, "┘") {
+		t.Errorf("the frame around it should stay dim, got %q", frame)
+	}
+}

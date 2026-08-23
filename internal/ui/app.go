@@ -28,9 +28,16 @@ const (
 	panelCells  = 4
 )
 
-// refreshEvery is how often the forecast is re-fetched. FMI publishes hourly,
-// so anything faster is just load on their servers.
-const refreshEvery = 10 * time.Minute
+// refreshEvery is how often the forecast is re-fetched, and equally how long
+// one already in hand counts as current. FMI publishes hourly, so anything
+// faster is just load on their servers; the cache decides the window, since a
+// forecast saved to it is the one a request would return.
+const refreshEvery = cache.Current
+
+// minRefresh is the floor between two requests for the same forecast. The
+// tick and the r key both go through it, so a forecast that could not be
+// loaded is retried at a sane pace rather than on every keypress.
+const minRefresh = time.Minute
 
 type mode int
 
@@ -56,6 +63,7 @@ type App struct {
 
 	client *fmi.Client
 	hours  []fmi.Hour
+	span0  Span // the range the hours in hand were fetched for
 	cols   []render.Column
 	scale  render.Scale
 
@@ -67,7 +75,8 @@ type App struct {
 	nerd    bool // the terminal can draw the Nerd Font glyphs
 	loading bool
 	stale   bool
-	fetched time.Time
+	fetched time.Time // when the forecast on screen was fetched from FMI
+	lastFet time.Time // when the last request went out, successful or not
 	err     error
 
 	search searchState
@@ -90,19 +99,24 @@ func New(p geo.Place, s Span, cfg *geo.Config, nerd bool) tea.Model {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.loadCache(), a.fetch(), tick())
+	// The request waits on the cache read rather than racing it: a forecast
+	// saved minutes ago is the one FMI would send back, so whether to ask at
+	// all is not known until the cache has been looked at.
+	return tea.Batch(a.loadCache(), tick())
 }
 
 // --- messages ---
 
 type forecastMsg struct {
 	place geo.Place
+	span  Span
 	hours []fmi.Hour
 	err   error
 }
 
 type cachedMsg struct {
 	place geo.Place
+	span  Span
 	hours []fmi.Hour
 	at    time.Time
 }
@@ -113,10 +127,12 @@ func tick() tea.Cmd {
 	return tea.Tick(refreshEvery, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-// fetch requests the forecast for the current place and span.
+// fetch requests the forecast for the current place and span. It is the
+// unconditional form; everything reaching for it goes through maybeFetch.
 func (a *App) fetch() tea.Cmd {
 	place, span := a.place, a.span
 	client := a.client
+	a.lastFet = time.Now()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -124,23 +140,65 @@ func (a *App) fetch() tea.Cmd {
 		to := from.Add(time.Duration(span.Hours-1) * time.Hour)
 		hours, err := client.Fetch(ctx, place.Lat, place.Lon, from, to)
 		if err == nil {
-			cache.Save(appName, place.Lat, place.Lon, hours)
+			cache.Save(appName, place.Lat, place.Lon, span.Hours, hours)
 		}
-		return forecastMsg{place: place, hours: hours, err: err}
+		return forecastMsg{place: place, span: span, hours: hours, err: err}
 	}
 }
 
-// loadCache shows the last known forecast immediately, so the screen is never
-// blank while the network call is in flight.
-func (a *App) loadCache() tea.Cmd {
-	place := a.place
-	return func() tea.Msg {
-		hours, at, err := cache.Load(appName, place.Lat, place.Lon)
-		if err != nil || len(hours) == 0 {
-			return nil
-		}
-		return cachedMsg{place: place, hours: hours, at: at}
+// current reports whether the forecast on screen is recent enough to leave
+// alone. One read back from the cache counts: it is the same data a request
+// would return, whichever run of the program fetched it.
+func (a *App) current() bool {
+	return len(a.hours) > 0 && a.span0.Hours == a.span.Hours && cache.Fresh(a.fetched)
+}
+
+// maybeFetch is how every refresh is asked for. It sends a request only when
+// there is something to gain by it: current data is left alone, and two
+// requests for the same forecast are never sent within minRefresh of each
+// other. A nil command means the forecast on screen already stands.
+func (a *App) maybeFetch() tea.Cmd {
+	if a.current() || time.Since(a.lastFet) < minRefresh {
+		return nil
 	}
+	a.loading = true
+	return a.fetch()
+}
+
+// loadCache reads the saved forecast for the current place and span. It always
+// answers, empty-handed if need be, because the reply is what decides whether
+// a request goes out at all.
+func (a *App) loadCache() tea.Cmd {
+	place, span := a.place, a.span
+	return func() tea.Msg {
+		hours, at, err := cache.Load(appName, place.Lat, place.Lon, span.Hours)
+		if err != nil {
+			hours, at = nil, time.Time{}
+		}
+		return cachedMsg{place: place, span: span, hours: hours, at: at}
+	}
+}
+
+// reload points the view at a place it holds nothing for. The columns on
+// screen are the place just left, so they go, and the rate limit starts over:
+// it guards repeat requests for one forecast, not the move to another.
+func (a *App) reload() tea.Cmd {
+	a.hours, a.cols, a.span0 = nil, nil, Span{}
+	a.cursor, a.scroll = 0, 0
+	a.fetched, a.lastFet = time.Time{}, time.Time{}
+	a.loading, a.stale, a.err = true, false, nil
+	return a.loadCache()
+}
+
+// switchSpan moves to another range. What is drawn stays up while the new
+// range loads, rather than blinking out — but it is the old range's data, and
+// span0 says so, so it is never taken for an answer to the new one.
+func (a *App) switchSpan(s Span) tea.Cmd {
+	a.span = s
+	a.cursor, a.scroll = 0, 0
+	a.lastFet = time.Time{}
+	a.loading, a.err = true, nil
+	return a.loadCache()
 }
 
 // --- update ---
@@ -158,19 +216,29 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case cachedMsg:
-		// A live result that already landed wins over the cache.
-		if a.loading && len(a.hours) == 0 && msg.place.Same(a.place) {
-			a.setHours(msg.hours)
-			a.stale = true
-			a.fetched = msg.at
+		// A later switch, or a live result that got in first, leaves the read
+		// with nothing to say.
+		if !msg.place.Same(a.place) || msg.span.Hours != a.span.Hours {
+			return a, nil
 		}
-		return a, nil
+		if len(msg.hours) > 0 && a.span0.Hours != a.span.Hours {
+			a.setHours(msg.hours)
+			a.fetched = msg.at
+			a.stale = !cache.Fresh(msg.at)
+		}
+		// Whether the saved forecast was current is exactly the question of
+		// whether to ask FMI for another one.
+		cmd := a.maybeFetch()
+		a.loading = cmd != nil
+		return a, cmd
 
 	case forecastMsg:
-		a.loading = false
-		if !msg.place.Same(a.place) {
-			return a, nil // a later place switch superseded this request
+		// A switch made while the request was out supersedes it, and leaves
+		// the request now in flight for that range to clear the flag.
+		if !msg.place.Same(a.place) || msg.span.Hours != a.span.Hours {
+			return a, nil
 		}
+		a.loading = false
 		if msg.err != nil {
 			a.err = msg.err
 			return a, nil
@@ -182,8 +250,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tickMsg:
-		a.loading = true
-		return a, tea.Batch(a.fetch(), tick())
+		// The tick keeps its own time whether or not it fetches, so a refresh
+		// the user asked for a minute ago does not push the next one out.
+		return a, tea.Batch(a.maybeFetch(), tick())
 
 	case tea.KeyPressMsg:
 		return a.key(msg)
@@ -211,9 +280,9 @@ func (a *App) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.moveCursor(-1)
 	case "right", "l":
 		a.moveCursor(1)
-	case "shift+left", "H":
+	case "up", "H":
 		a.moveCursor(-a.dayStep())
-	case "shift+right", "L":
+	case "down", "L":
 		a.moveCursor(a.dayStep())
 	case "pgup":
 		a.moveCursor(-a.visible())
@@ -227,17 +296,12 @@ func (a *App) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.clampScroll()
 
 	case "tab":
-		a.span = nextRange(a.span)
-		a.loading, a.cursor, a.scroll = true, 0, 0
-		return a, a.fetch()
+		return a, a.switchSpan(nextRange(a.span))
 	case "shift+tab":
-		a.span = prevRange(a.span)
-		a.loading, a.cursor, a.scroll = true, 0, 0
-		return a, a.fetch()
+		return a, a.switchSpan(prevRange(a.span))
 
 	case "r":
-		a.loading = true
-		return a, a.fetch()
+		return a, a.maybeFetch()
 
 	case "/", "s":
 		a.openSearch()
@@ -271,7 +335,7 @@ func prevRange(s Span) Span {
 }
 
 func (a *App) setHours(hours []fmi.Hour) {
-	a.hours = hours
+	a.hours, a.span0 = hours, a.span
 	a.cols = render.Columns(hours, a.span.Slots, a.place.Lat, a.place.Lon)
 	a.scale = render.NewScale(a.cols)
 	if a.cursor >= len(a.cols) {
@@ -583,59 +647,95 @@ func ago(t time.Time) string {
 	return fmt.Sprintf("%dh ago", int(d.Hours()))
 }
 
-// chartKeys is the widest shortcut list that still fits beside the footer's
+// hint is one entry of a shortcut list: the key to press, and what pressing it
+// does. The key is what a reader is scanning for, so the two are held apart
+// rather than written as one string — that is what lets the key be lit and the
+// words around it left grey. A hint with no key is a plain instruction.
+type hint struct{ key, what string }
+
+// chartHints is the widest shortcut list that still fits beside the footer's
 // indent. Picking by measurement rather than by hard-coded terminal widths
 // keeps the list aligned with the boxes whenever a key is renamed.
-func (a *App) chartKeys() string {
-	return a.fitKeys(
-		"←→ hour · ⇧←→ day · tab range · / place · f favs · r refresh · q quit",
-		"←→ hour · tab range · / place · f favs · q quit",
-		"←→ · tab · / · f · q quit")
+func (a *App) chartHints() []hint {
+	return a.fitHints(
+		[]hint{{"←→", "hour"}, {"↑↓", "day"}, {"tab", "range"}, {"/", "place"},
+			{"f", "favs"}, {"r", "refresh"}, {"q", "quit"}},
+		[]hint{{"←→", "hour"}, {"tab", "range"}, {"/", "place"}, {"f", "favs"},
+			{"q", "quit"}},
+		[]hint{{"←→", ""}, {"tab", ""}, {"/", ""}, {"f", ""}, {"q", "quit"}})
 }
 
-// fitKeys picks the widest of the given lists that still fits beside the
+// fitHints picks the widest of the given lists that still fits beside the
 // footer's indent, so a list is shortened rather than clipped.
-func (a *App) fitKeys(lists ...string) string {
-	for _, keys := range lists {
-		if keyIndent+lipgloss.Width(keys) <= a.width {
-			return keys
+func (a *App) fitHints(lists ...[]hint) []hint {
+	for _, hs := range lists {
+		if keyIndent+lipgloss.Width(hintLine(hs).Plain()) <= a.width {
+			return hs
 		}
 	}
-	return "q quit"
+	return []hint{{"q", "quit"}}
 }
 
-// footerKeys is the shortcut list under the view. A floating window has its
+// footerHints is the shortcut list under the view. A floating window has its
 // own, since the chart's keys are typed into its prompt while it is up.
-func (a *App) footerKeys() string {
+func (a *App) footerHints() []hint {
 	switch a.mode {
 	case modeChart:
-		return a.chartKeys()
+		return a.chartHints()
 	case modeSearch:
 		// Typing is the first thing to say: everything else on the list is
 		// what to do with a result once the query has turned one up.
-		return a.fitKeys(
-			"type to search · ↑↓ pick · ↵ select · tab favourite · esc close",
-			"type to search · ↑↓ pick · ↵ select · tab star · esc close",
-			"↑↓ pick · ↵ select · tab star · esc close")
+		return a.fitHints(
+			[]hint{{"", "type to search"}, {"↑↓", "pick"}, {"↵", "select"},
+				{"tab", "favourite"}, {"esc", "close"}},
+			[]hint{{"", "type to search"}, {"↑↓", "pick"}, {"↵", "select"},
+				{"tab", "star"}, {"esc", "close"}},
+			[]hint{{"↑↓", "pick"}, {"↵", "select"}, {"tab", "star"}, {"esc", "close"}})
 	case modeFav:
-		return a.fitKeys(
-			"↑↓ pick · ↵ go · x unstar · / search · esc close",
-			"↑↓ · ↵ go · x unstar · esc close",
-			"↵ go · x unstar · esc")
+		return a.fitHints(
+			[]hint{{"↑↓", "pick"}, {"↵", "go"}, {"x", "unstar"}, {"/", "search"},
+				{"esc", "close"}},
+			[]hint{{"↑↓", ""}, {"↵", "go"}, {"x", "unstar"}, {"esc", "close"}},
+			[]hint{{"↵", "go"}, {"x", "unstar"}, {"esc", ""}})
 	}
-	return "esc back · q quit"
+	return []hint{{"esc", "back"}, {"q", "quit"}}
+}
+
+// hintLine writes a shortcut list out: every key lit, and the words telling
+// you what it does left in the shade, so the list reads as a row of keys
+// rather than as a sentence to be searched for them.
+func hintLine(hs []hint) render.Line {
+	var line render.Line
+	for i, h := range hs {
+		if i > 0 {
+			line = append(line, render.Span{Text: " · ", Colour: render.Grey})
+		}
+		if h.key != "" {
+			line = append(line, render.Span{Text: h.key, Colour: render.Yellow})
+		}
+		if h.what == "" {
+			continue
+		}
+		gap := ""
+		if h.key != "" {
+			gap = " "
+		}
+		line = append(line, render.Span{Text: gap + h.what, Colour: render.Grey})
+	}
+	return line
 }
 
 // keyLine is the shortcut list as a row of the body, so the chart view can
 // hang it under the header box rather than at the foot of the screen.
 func (a *App) keyLine() render.Line {
-	keys := a.footerKeys()
+	keys := hintLine(a.footerHints())
 	// The list starts two columns inside the boxes, which reads as a caption
 	// under the one above it rather than as another panel's left edge. A
 	// terminal too narrow to spare the indent gives it up: the keys
 	// themselves matter more than where they begin.
-	indent := min(keyIndent, max(0, a.width-lipgloss.Width(keys)))
-	return render.Line{{Text: strings.Repeat(" ", indent) + keys, Colour: render.Grey}}
+	indent := min(keyIndent, max(0, a.width-lipgloss.Width(keys.Plain())))
+	return append(render.Line{{Text: strings.Repeat(" ", indent), Colour: render.Grey}},
+		keys...)
 }
 
 // footer is the same list pinned to the bottom of the screen, for the views

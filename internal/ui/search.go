@@ -203,15 +203,13 @@ func lookup(seq int, query string) tea.Cmd {
 	}
 }
 
-// goTo switches location, remembers it as the default, and refetches.
+// goTo switches location, remembers it as the default, and loads the forecast
+// for it — from the cache alone, if the place was last looked at minutes ago.
 func (a *App) goTo(p geo.Place) tea.Cmd {
 	a.place = p
-	a.hours, a.cols = nil, nil
-	a.cursor, a.scroll = 0, 0
-	a.loading, a.stale, a.err = true, false, nil
 	a.cfg.Default = &p
 	_ = a.cfg.Save(appName) // a read-only config should not break navigation
-	return tea.Batch(a.loadCache(), a.fetch())
+	return a.reload()
 }
 
 func (a *App) toggleFavourite() (tea.Model, tea.Cmd) {

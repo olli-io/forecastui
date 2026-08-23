@@ -21,18 +21,30 @@ type entry struct {
 // the bars would be describing weather that has already happened.
 const maxAge = 24 * time.Hour
 
-func path(app string, lat, lon float64) (string, error) {
+// Current is how long a saved forecast is the current one. FMI publishes
+// hourly, so a forecast fetched inside this window is the same data another
+// request would return, and asking again buys nothing.
+const Current = 10 * time.Minute
+
+// Fresh reports whether a forecast fetched at t still counts as current.
+func Fresh(t time.Time) bool { return !t.IsZero() && time.Since(t) < Current }
+
+// path keys an entry by location and by the span it was fetched for: two days
+// of hours cannot answer a request for the week, so the two spans are kept
+// apart rather than one overwriting the other.
+func path(app string, lat, lon float64, span int) (string, error) {
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, app, fmt.Sprintf("%.4f_%.4f.json", lat, lon)), nil
+	name := fmt.Sprintf("%.4f_%.4f_%dh.json", lat, lon, span)
+	return filepath.Join(dir, app, name), nil
 }
 
 // Save writes a forecast to the cache. Failures are reported but never fatal:
 // a working cache is a convenience, not a requirement.
-func Save(app string, lat, lon float64, hours []fmi.Hour) error {
-	p, err := path(app, lat, lon)
+func Save(app string, lat, lon float64, span int, hours []fmi.Hour) error {
+	p, err := path(app, lat, lon, span)
 	if err != nil {
 		return err
 	}
@@ -52,8 +64,8 @@ func Save(app string, lat, lon float64, hours []fmi.Hour) error {
 
 // Load returns the cached forecast and when it was fetched. A missing, broken
 // or stale entry reads as empty rather than as an error worth showing.
-func Load(app string, lat, lon float64) ([]fmi.Hour, time.Time, error) {
-	p, err := path(app, lat, lon)
+func Load(app string, lat, lon float64, span int) ([]fmi.Hour, time.Time, error) {
+	p, err := path(app, lat, lon, span)
 	if err != nil {
 		return nil, time.Time{}, err
 	}

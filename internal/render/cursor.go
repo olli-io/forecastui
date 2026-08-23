@@ -47,6 +47,11 @@ func Cursor(lines []Line, cols []Column, o Opts) []Line {
 			rs[x], cs[x] = gHoriz, Dim
 		}
 		rs[left], rs[left+1], rs[right] = l, mid, r
+		// The arrow is the one stroke of the frame that says which column is
+		// picked, so it carries the accent rather than the frame's own shade.
+		if mid == gArrow {
+			cs[left+1] = Yellow
+		}
 		return implode(rs, cs)
 	}
 
