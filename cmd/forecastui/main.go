@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -42,13 +43,9 @@ func run() error {
 	flag.Usage = usage
 	flag.Parse()
 
-	loc, span, err := resolve(flag.Args(), *place, *lat, *lon, *hours, *week)
+	loc, span, err := resolve(positional(flag.CommandLine), *place, *lat, *lon, *hours, *week)
 	if err != nil {
 		return err
-	}
-
-	if *once {
-		return runOnce(loc, span, *width)
 	}
 
 	mode, err := ui.ParseGlyphMode(*glyphs)
@@ -56,27 +53,64 @@ func run() error {
 		return err
 	}
 
-	cfg, _ := geo.Load(appName) // a missing or broken config is not fatal
 	// The font check probes the terminal, so it is made here rather than in
 	// the model: by the time Bubble Tea is running, the screen is not ours to
-	// write a test glyph onto.
-	m := ui.New(loc, span, cfg, ui.NerdFont(mode))
+	// write a test glyph onto. A one-shot chart draws the same sky row, so it
+	// asks the same question first.
+	nerd := ui.NerdFont(mode)
+
+	if *once {
+		return runOnce(loc, span, *width, nerd)
+	}
+
+	cfg, _ := geo.Load(appName) // a missing or broken config is not fatal
+	m := ui.New(loc, span, cfg, nerd)
 	_, err = tea.NewProgram(m).Run()
 	return err
 }
 
+// positional collects the arguments that are not flags, letting a flag stand
+// after one as well as before it. Go's flag package stops at the first word it
+// does not recognise, so "forecastui --once day --place turku" would leave
+// "--place turku" to be read as a longitude and a latitude. Each positional is
+// set aside and what follows it parsed again.
+func positional(fs *flag.FlagSet) []string {
+	var args []string
+	for rest := fs.Args(); len(rest) > 0; rest = fs.Args() {
+		args = append(args, rest[0])
+		// A western longitude opens with a minus and would be taken for a
+		// flag, so the coordinates end the interleaving: everything from one
+		// on is positional.
+		if len(rest) > 1 && negative(rest[1]) {
+			return append(args, rest[1:]...)
+		}
+		_ = fs.Parse(rest[1:]) // the caller's set decides what an error does
+	}
+	return args
+}
+
+// negative reports whether an argument is a negative number rather than a flag.
+func negative(s string) bool {
+	if !strings.HasPrefix(s, "-") {
+		return false
+	}
+	_, err := strconv.ParseFloat(s, 64)
+	return err == nil
+}
+
 func usage() {
-	fmt.Fprintf(os.Stderr, `usage: %s [flags] [hours|week] [lon lat]
+	fmt.Fprintf(os.Stderr, `usage: %s [flags] [day|week|hours] [lon lat]
 
 Interactive by default. The positional form is kept for compatibility with the
 original turku-forecast.sh:
 
-  %s 24            24 hours at the default location
+  %s day           the next two days, hour by hour
   %s week          a week, 3 h steps from now
+  %s 24            24 hours at the default location
   %s 48 24.94 60.17   48 hours at a given lon/lat
 
 flags:
-`, appName, appName, appName, appName)
+`, appName, appName, appName, appName, appName)
 	flag.PrintDefaults()
 }
 
@@ -90,10 +124,15 @@ func resolve(args []string, place string, lat, lon float64, hours int, week bool
 		switch args[0] {
 		case "week", "w":
 			week = true
+		case "day", "d":
+			// The two named ranges the interactive view tabs between, so the
+			// positional form reaches the same two by the same names.
+			hours = 48
 		default:
 			n, err := strconv.Atoi(args[0])
 			if err != nil || n < 1 {
-				return geo.Place{}, ui.Span{}, fmt.Errorf("hours must be a positive number, got %q", args[0])
+				return geo.Place{}, ui.Span{}, fmt.Errorf(
+					"want day, week or a positive number of hours, got %q", args[0])
 			}
 			hours = n
 		}
@@ -137,7 +176,7 @@ func resolve(args []string, place string, lat, lon float64, hours int, week bool
 }
 
 // runOnce prints a single chart, the way the shell script did.
-func runOnce(p geo.Place, span ui.Span, width int) error {
+func runOnce(p geo.Place, span ui.Span, width int, nerd bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -152,7 +191,7 @@ func runOnce(p geo.Place, span ui.Span, width int) error {
 		}
 		return err
 	}
-	out, err := ui.Once(p, hours, span, width)
+	out, err := ui.Once(p, hours, span, width, nerd)
 	if err != nil {
 		return err
 	}

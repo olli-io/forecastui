@@ -253,25 +253,61 @@ func stripANSI(s string) string {
 	return b.String()
 }
 
+// The tabs in the header's top edge name the two ranges rather than measuring
+// them, and the range on screen is the lit one.
+func TestRangeTabsNameBothRanges(t *testing.T) {
+	a := newTestApp(t, 100, 30, 48)
+	lit := func() string {
+		var out string
+		for _, sp := range a.header()[0] {
+			if sp.Colour == render.Yellow {
+				out = sp.Text
+			}
+		}
+		return out
+	}
+	if got := a.header()[0].Plain(); !strings.Contains(got, "day") ||
+		!strings.Contains(got, "week") {
+		t.Errorf("header edge %q does not name both ranges", got)
+	}
+	if got := lit(); got != "day" {
+		t.Errorf("the 48 h range is lit as %q, want \"day\"", got)
+	}
+	press(a, "tab")
+	if got := lit(); got != "week" {
+		t.Errorf("after tab the lit range is %q, want \"week\"", got)
+	}
+}
+
 func TestBoxesLineUpWithTheChart(t *testing.T) {
+	// Both a forecast longer than the window and one shorter than it: a short
+	// span leaves room to the right of the chart, and the boxes have to stop
+	// where the chart does rather than where the terminal does.
 	for _, w := range []int{70, 80, 100, 120, 160} {
-		a := newTestApp(t, w, 40, 48)
-		rule := render.Rule(a.cols, render.Opts{Start: a.scroll, Count: a.visible()}, "").Plain()
-		// A box stands one column in from the screen's left edge and closes on
-		// the chart's right wall: the chart hangs inside it, rather than the
-		// box standing in the chart's own walls.
-		for name, box := range map[string]string{
-			"detail": a.detail()[0].Plain(), // each frame's top edge
-			"header": a.header()[0].Plain(),
-		} {
-			if got, want := lipglossWidth(box), lipglossWidth(rule); got != want {
-				t.Errorf("width %d: %s box ends at %d, chart rule at %d\n%s\n%s",
-					w, name, got, want, rule, box)
-			}
-			if got := strings.Index(box, "┌"); got != boxIndent {
-				t.Errorf("width %d: %s box starts at %d, want %d\n%s",
-					w, name, got, boxIndent, box)
-			}
+		for _, hours := range []int{48, 24} {
+			checkBoxWidth(t, w, hours)
+		}
+	}
+}
+
+func checkBoxWidth(t *testing.T, w, hours int) {
+	t.Helper()
+	a := newTestApp(t, w, 40, hours)
+	rule := render.Rule(a.cols, render.Opts{Start: a.scroll, Count: a.visible()}, "").Plain()
+	// A box stands one column in from the screen's left edge and closes on
+	// the chart's right wall: the chart hangs inside it, rather than the
+	// box standing in the chart's own walls.
+	for name, box := range map[string]string{
+		"detail": a.detail()[0].Plain(), // each frame's top edge
+		"header": a.header()[0].Plain(),
+	} {
+		if got, want := lipglossWidth(box), lipglossWidth(rule); got != want {
+			t.Errorf("width %d, %d h: %s box ends at %d, chart rule at %d\n%s\n%s",
+				w, hours, name, got, want, rule, box)
+		}
+		if got := strings.Index(box, "┌"); got != boxIndent {
+			t.Errorf("width %d, %d h: %s box starts at %d, want %d\n%s",
+				w, hours, name, got, boxIndent, box)
 		}
 	}
 }

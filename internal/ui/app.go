@@ -307,6 +307,21 @@ func (a *App) clampScroll() {
 
 func (a *App) visible() int { return render.Fits(a.width) }
 
+// drawn is how many columns the chart puts on screen: as many as fit, or as
+// many as are left from the scroll position when the forecast is shorter than
+// that. It is what the boxes measure themselves against.
+func (a *App) drawn() int { return max(0, min(a.visible(), len(a.cols)-a.scroll)) }
+
+// opts is what every panel of the chart view is drawn from: the window the
+// scroll position opens on the columns, and the two settings that change how
+// a column is drawn rather than which ones are.
+func (a *App) opts() render.Opts {
+	return render.Opts{
+		Start: a.scroll, Count: a.visible(),
+		Slots: a.span.Slots, Nerd: a.nerd, Cursor: a.cursor,
+	}
+}
+
 // dayStep is how many columns make up a day. It is read off the columns
 // themselves rather than the span, so it follows whatever step the current
 // view is drawn in — one per hour, or one per 3 h in the aggregated view.
@@ -354,10 +369,7 @@ func (a *App) chartView() string {
 		return a.statusOnly()
 	}
 
-	opts := render.Opts{
-		Start: a.scroll, Count: a.visible(),
-		Slots: a.span.Slots, Nerd: a.nerd, Cursor: a.cursor,
-	}
+	opts := a.opts()
 
 	// Temperature, rain and wind are boxes stacked on one time line: each
 	// closes with its own rule, and only the lowest carries the hour labels.
@@ -505,7 +517,7 @@ func (a *App) statusOnly() string {
 // header is the place and the forecast's span, boxed, with the ranges tab
 // toggles between set into the box's top edge.
 func (a *App) header() []render.Line {
-	return boxedTop(rangeTabs(a.span), a.headerSpans(), a.width, render.Grey)
+	return boxedTop(rangeTabs(a.span), a.headerSpans(), a.drawn(), a.width, render.Grey)
 }
 
 // headerLine is the same reading as a plain indented row, for a terminal too

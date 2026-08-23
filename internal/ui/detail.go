@@ -35,12 +35,14 @@ const (
 // gap separates two readings.
 var gap = render.Span{Text: "   ", Colour: render.Grey}
 
-// detail describes the column under the cursor, and marks where it sits.
-func (a *App) detail() []render.Line {
-	if a.cursor < 0 || a.cursor >= len(a.cols) {
+// detail describes the column under the cursor, and marks where it sits. Both
+// views draw it: the app under a cursor the reader moves, the one-shot dump
+// under the hour it is printed in.
+func detail(cols []render.Column, o render.Opts, drawn, width int, nerd bool) []render.Line {
+	if o.Cursor < 0 || o.Cursor >= len(cols) {
 		return nil
 	}
-	c := a.cols[a.cursor]
+	c := cols[o.Cursor]
 
 	// The footnote under the chart already says the week is drawn in 3 h
 	// means; repeating it on every column only crowds the row.
@@ -51,7 +53,7 @@ func (a *App) detail() []render.Line {
 		// only made the row jump about as the wording changed length. A moon
 		// is purple here as it is in the strip above, or the same glyph would
 		// be two colours at once on the one screen.
-		{Text: string(fmi.Describe(c.Sym, c.Night).Rune(a.nerd)), Colour: glyphColour(c)},
+		{Text: string(fmi.Describe(c.Sym, c.Night).Rune(nerd)), Colour: glyphColour(c)},
 		gap,
 		{
 			Text: num("%5.1f", 5, c.Temp) + " °C " +
@@ -72,21 +74,25 @@ func (a *App) detail() []render.Line {
 	// The detail box carries the brightest frame on screen. It is the one
 	// thing that changes as the cursor moves, so it reads first; the chart's
 	// own walls and the cursor frame stay a shade back from it.
-	return boxedTop(a.cursorMark(), line, a.width, render.FG)
+	return boxedTop(cursorMark(o), line, drawn, width, render.FG)
+}
+
+func (a *App) detail() []render.Line {
+	return detail(a.cols, a.opts(), a.drawn(), a.width, a.nerd)
 }
 
 // cursorMark is the run of top edge that ends in a downward arrow directly
 // under the cursor frame's upward one, so the frame and the box it feeds read
 // as one gesture rather than two separate drawings.
-func (a *App) cursorMark() render.Line {
-	if a.cursor < a.scroll || a.cursor >= a.scroll+a.visible() {
+func cursorMark(o render.Opts) render.Line {
+	if o.Cursor < o.Start || o.Cursor >= o.Start+o.Count {
 		return nil
 	}
 	// The edge starts one column past the frame's corner; the bars start at
 	// AxisW. The difference is what the arrow's own column is measured from.
 	lead := render.AxisW - boxIndent - 1
 	return render.Line{
-		{Text: strings.Repeat("─", lead+(a.cursor-a.scroll)*render.Step), Colour: render.FG},
+		{Text: strings.Repeat("─", lead+(o.Cursor-o.Start)*render.Step), Colour: render.FG},
 		// The arrow belongs to the cursor frame it answers, not to the box it
 		// stands in, so it is painted in that frame's shade.
 		{Text: render.DownArrow, Colour: render.Dim},
@@ -144,16 +150,19 @@ func slot(width int, s string) string {
 }
 
 // boxedTop wraps a line in a frame that stands on the screen's left edge and
-// closes on the chart's own right wall. The frame is drawn in
-// the given colour, and something can be set into its top edge from the left
-// corner on — the header's range tabs ride there the way lazygit's do, in the
-// border rather than on a row of their own. The line is folded onto more rows
-// when the terminal is too narrow to hold it in one.
-func boxedTop(top, l render.Line, width int, frame render.Colour) []render.Line {
+// closes on the chart's own right wall. cols is how many columns the chart
+// actually draws, which is not always as many as the terminal would hold: a
+// 24 h forecast in a wide window leaves the room to its right empty, and a box
+// measured off the window rather than off the chart would reach past it. The
+// frame is drawn in the given colour, and something can be set into its top
+// edge from the left corner on — the header's range tabs ride there the way
+// lazygit's do, in the border rather than on a row of their own. The line is
+// folded onto more rows when the terminal is too narrow to hold it in one.
+func boxedTop(top, l render.Line, cols, width int, frame render.Colour) []render.Line {
 	indent := boxIndent
 	// The chart's right wall stands at AxisW + columns*Step - 1, and the
 	// frame's corner is indent + 1 + (inner + 2) columns along.
-	inner := render.AxisW + render.Fits(width)*render.Step - indent - 4
+	inner := render.AxisW + cols*render.Step - indent - 4
 	inner = min(inner, width-indent-4) // never wider than the terminal
 	if inner < 1 {
 		return []render.Line{l}

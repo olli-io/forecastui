@@ -32,7 +32,7 @@ func TestSearchWindowFloatsOverTheChart(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	withResults(t, a, "Turku, Finland")
 	out := stripANSI(a.render())
-	for _, want := range []string{"Find a place", "Turku, Finland", "48h", "esc close"} {
+	for _, want := range []string{"Find a place", "Turku, Finland", "day", "esc close"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the overlaid view is missing %q:\n%s", want, out)
 		}
@@ -44,7 +44,7 @@ func TestFavouritesWindowFloatsOverTheChart(t *testing.T) {
 	a.cfg.Favourites = places("Tromsø", "Kiruna")
 	a.openFavourites()
 	out := stripANSI(a.render())
-	for _, want := range []string{"Favourites", "Tromsø", "Kiruna", "48h"} {
+	for _, want := range []string{"Favourites", "Tromsø", "Kiruna", "day"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the overlaid view is missing %q:\n%s", want, out)
 		}

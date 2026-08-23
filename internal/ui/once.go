@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/charmbracelet/x/term"
 
@@ -19,18 +20,31 @@ type Span struct {
 	Slots bool // aggregate to 3 h steps
 }
 
-// Label names a range the way the header tabs show it: hours while they are
-// still a number worth reading, days once a week or more is in view.
+// Label names a range the way the header tabs show it. The two ranges the app
+// toggles between are named rather than measured: the header line beside the
+// tab already spells the span out to the hour, so a second reading of the same
+// thing in the border says nothing. Any other length the flags ask for is
+// still shown as the number of hours it is.
 func (s Span) Label() string {
-	if s.Hours >= 168 {
-		return fmt.Sprintf("%dd", s.Hours/24)
+	switch {
+	case s.Hours >= 168:
+		return "week"
+	case s.Hours == 48:
+		return "day"
 	}
 	return fmt.Sprintf("%dh", s.Hours)
 }
 
-// Once renders a single static chart, the shell script's whole job. Width of
-// zero means "measure the terminal".
-func Once(place geo.Place, hours []fmi.Hour, span Span, width int) (string, error) {
+// Once renders a single static chart, the shell script's whole job. It draws
+// the same stack the interactive view does — boxed header, chart, rain and
+// wind panels, the sky row and the readings under it, and the cursor frame
+// with its detail box, standing on the current hour — bar the shortcut list,
+// which names keys a dump has nothing to do with. A dump is not bounded by
+// the terminal's height, so no panel is dropped to fit.
+//
+// Width of zero means "measure the terminal"; nerd says whether the terminal
+// can draw the Nerd Font glyphs, settled by the caller as it is for the app.
+func Once(place geo.Place, hours []fmi.Hour, span Span, width int, nerd bool) (string, error) {
 	if len(hours) == 0 {
 		return "", errors.New("no forecast hours to draw")
 	}
@@ -46,49 +60,81 @@ func Once(place geo.Place, hours []fmi.Hour, span Span, width int) (string, erro
 
 	// A static dump keeps the near future, which is what the reader came for.
 	n := render.Fits(width)
+	// Nothing moves the cursor here, so it stands where the reader is: on the
+	// hour the command was run in, with the detail box under it reading out
+	// the weather right now.
+	o := render.Opts{
+		Start: 0, Count: n,
+		Slots: span.Slots, Nerd: nerd, Cursor: nowColumn(cols, time.Now()),
+	}
 
-	lines := []render.Line{Header(place.Label(), cols, span.Slots), blank()}
-	o := render.Opts{Start: 0, Count: n, Slots: span.Slots, Cursor: -1}
-	lines = append(lines, render.Chart(cols, sc, o)...)
+	// The header box, then a blank row where the interactive view hangs its
+	// shortcut list: either way the box's bottom edge is clear of the chart.
+	drawn := min(n, len(cols))
+	lines := boxedTop(activeTab(span), headerText(place.Label(), cols, span.Slots),
+		drawn, width, render.Grey)
+	lines = append(lines, blank())
+
+	// Temperature, rain and wind are boxes stacked on one time line: each
+	// closes with its own rule, and only the lowest carries the hour labels.
+	// Everything the cursor frame runs through is built as one block, so the
+	// frame can be drawn down it in one pass.
+	zero := render.Rule(cols, o, "0")
+	stack := append([]render.Line{}, render.Chart(cols, sc, withHeight(o, chartCells))...)
+	stack = append(stack, render.Rule(cols, o, fmt.Sprintf("%.1f°C", sc.Lo)))
 	// The rain panel is skipped outright on a dry forecast; the legend below
 	// still reports that there is none.
 	if rain := render.Rain(cols, sc, withHeight(o, panelCells)); rain != nil {
-		lines = append(lines, render.Rule(cols, o, fmt.Sprintf("%.1f°C", sc.Lo)))
-		lines = append(lines, rain...)
-		lines = append(lines, render.Rule(cols, o, "0"))
-		lines = append(lines, render.HourLabels(cols, o)...)
-		lines = append(lines, render.TempLabels(cols, o))
-	} else {
-		lines = append(lines, render.Axis(cols, sc, o)...)
+		stack = append(stack, rain...)
+		stack = append(stack, zero)
 	}
+	wind := render.Wind(cols, sc, withHeight(o, panelCells))
+	if wind != nil {
+		stack = append(stack, wind...)
+		stack = append(stack, zero)
+	}
+	// Hours, then the readings that hang off them: the sky glyph, the
+	// temperature under it, and the wind direction when that panel is up.
+	stack = append(stack, render.HourLabels(cols, o)...)
+	stack = append(stack, render.Sky(cols, o)...)
+	stack = append(stack, render.TempLabels(cols, o))
 	if rains := render.RainLabels(cols, sc, o); rains != nil {
-		lines = append(lines, rains)
+		stack = append(stack, rains)
 	}
-	lines = append(lines, blank(), Legend(cols, sc, span.Slots))
-	if note := Note(span.Slots); note != nil {
-		lines = append(lines, note)
+	if wind != nil {
+		stack = append(stack, render.WindDirs(cols, o), render.WindSpeeds(cols, o))
 	}
-	if n < len(cols) {
-		lines = append(lines, render.Line{{
-			Text:   truncNote(len(cols)-n, n, span.Slots),
-			Colour: render.Grey,
-		}})
-	}
-	return Paint(lines, ColourEnabled(), 0), nil
+	lines = append(lines, render.Cursor(stack, cols, o)...)
+	lines = append(lines, detail(cols, o, drawn, width, nerd)...)
+
+	// Every row is measured off Fits already, so the clip is a guarantee
+	// rather than a change: no line can wrap and shear the braille grid
+	// across two terminal rows.
+	return Paint(lines, ColourEnabled(), width), nil
 }
 
-func truncNote(dropped, shown int, slots bool) string {
-	unit := "hours"
-	if slots {
-		unit = "steps"
+// nowColumn is the column the reader is standing in: the last one whose hour
+// has already begun, or the first when the whole forecast is still ahead.
+func nowColumn(cols []render.Column, now time.Time) int {
+	at := 0
+	for i, c := range cols {
+		if c.At.After(now) {
+			break
+		}
+		at = i
 	}
-	// At full width the terminal is no longer what is holding the chart back,
-	// so telling the reader to widen it would only waste their time.
-	fix := "widen the terminal, or drop -once to scroll"
-	if shown >= render.MaxCols {
-		fix = "drop -once to scroll"
+	return at
+}
+
+// activeTab is the span set into the header box's top edge, drawn the way
+// rangeTabs draws the lit one. The range it is not showing is left off: a
+// static dump has no tab key to reach the other one with.
+func activeTab(s Span) render.Line {
+	return render.Line{
+		{Text: "─", Colour: render.Grey},
+		{Text: s.Label(), Colour: render.Yellow},
+		{Text: "─", Colour: render.Grey},
 	}
-	return fmt.Sprintf("  %d more %s beyond the right edge — %s", dropped, unit, fix)
 }
 
 // TerminalWidth reports the usable width, falling back to the classic 80.
