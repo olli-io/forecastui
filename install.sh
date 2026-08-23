@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Install forecastui into ~/.local/bin (override with PREFIX or BINDIR, pick a
-# release with VERSION). A prebuilt binary from the GitHub release is used when
-# one exists for this platform; otherwise the source is built, which needs the
-# Go toolchain and git.
+# release with VERSION). Falls back to a source build, which needs Go and git.
 set -euo pipefail
 
 repo=olli-io/forecastui
@@ -12,15 +10,15 @@ version=${VERSION:-}
 die() { echo "forecastui: $*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# One trap for the whole run: a download that falls through to a source build
-# makes two temporary directories, and a second trap would forget the first.
+# One trap for the whole run: a download falling through to a source build makes
+# two temporary directories, and a second trap would forget the first.
 tmps=()
 cleanup() { [ ${#tmps[@]} -eq 0 ] || rm -rf "${tmps[@]}"; }
 trap cleanup EXIT
 mktmp() { local d; d=$(mktemp -d) || return 1; tmps+=("$d"); printf '%s\n' "$d"; }
 
-# The archives are named after GOOS and GOARCH, so the platform is read in
-# those terms. An unknown pair leaves the names empty and falls back to source.
+# The archives are named after GOOS and GOARCH. An unknown pair leaves these
+# empty and falls back to source.
 os= arch=
 case $(uname -s) in
   Linux) os=linux ;;
@@ -32,8 +30,6 @@ case $(uname -m) in
   aarch64|arm64) arch=arm64 ;;
 esac
 
-# curl and wget are both common enough that neither can be assumed on its own,
-# even though the piped-from-curl install has already answered the question.
 fetch() {
   if have curl; then curl -fsSL "$1" -o "$2"
   elif have wget; then wget -qO "$2" "$1"
@@ -41,8 +37,7 @@ fetch() {
   fi
 }
 
-# latest_version reads the tag out of the redirect GitHub serves for
-# /releases/latest, which needs no API token and no JSON parsing.
+# Reads the tag from the /releases/latest redirect: no API token, no JSON.
 latest_version() {
   local url
   have curl || return 1
@@ -54,8 +49,7 @@ latest_version() {
   esac
 }
 
-# verify checks one downloaded archive against the release's SHA256SUMS. A
-# machine without either checksum tool is warned rather than stopped.
+# Checks an archive against SHA256SUMS; no checksum tool warns rather than stops.
 verify() { # archive name sumsfile
   local sum want
   if have sha256sum; then sum=$(sha256sum "$1" | cut -d' ' -f1)
@@ -67,10 +61,9 @@ verify() { # archive name sumsfile
   [ "$sum" = "$want" ] || die "checksum mismatch for $2"
 }
 
-# install_bin puts a built or unpacked binary in place. cp + chmod rather than
-# install(1), which Git Bash does not ship. The copy lands beside the target
-# and is moved over it: replacing a running binary in place is what "Text file
-# busy" is, and a rename is not that.
+# cp + chmod rather than install(1), which Git Bash does not ship. The copy
+# lands beside the target and is renamed over it: overwriting a running binary
+# in place is "Text file busy", a rename is not.
 install_bin() { # path name
   mkdir -p "$bindir"
   cp "$1" "$bindir/$2.new"
@@ -79,16 +72,14 @@ install_bin() { # path name
   echo "installed $bindir/$2"
 }
 
-# from_release downloads and unpacks the published binary, and reports failure
-# so the caller can build instead.
+# Reports failure so the caller can build instead.
 from_release() {
   [ -n "$os" ] && [ -n "$arch" ] || return 1
   [ -n "$version" ] || version=$(latest_version) || return 1
 
   local ext=tar.gz bin=forecastui
   if [ "$os" = windows ]; then
-    # Only unzip can open the Windows archive; Git Bash ships GNU tar, which
-    # cannot, so a machine without it falls through to building.
+    # Only unzip can open the Windows archive; Git Bash's GNU tar cannot.
     have unzip || return 1
     ext=zip bin=forecastui.exe
   fi
@@ -114,9 +105,8 @@ from_release() {
   install_bin "$tmp/$bin" "$bin"
 }
 
-# from_source builds the checkout this script sits in. Piped from curl there is
-# no checkout to build: the script is coming down the pipe on its own, so it
-# fetches the source it needs into a temp clone and throws it away again.
+# Builds the checkout this script sits in. Piped from curl there is none, so it
+# clones into a temp directory and throws it away again.
 from_source() {
   local src_dir
   src_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)

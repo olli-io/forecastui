@@ -9,36 +9,28 @@ import (
 	"github.com/olli-io/forecastui/internal/render"
 )
 
-// Floating windows are the app's one departure from the stacked layout: the
-// search prompt and the favourites list are drawn over the chart rather than
-// in place of it, so the forecast they are about is still on screen behind
-// them. The chart is the only view under them.
+// The search prompt and the favourites list are drawn over the chart rather
+// than in place of it, so the forecast is still on screen behind them.
 
-// floatW is how wide a floating window would like to be: room for a place
-// name and its coordinates side by side without eliding the name. A hit comes
-// back named with the town and country around it — "Kuopion lentoasema,
-// Siilinjärvi, Suomi" — and a list of those is only worth reading when they
-// are not all cut down to the same stub. A narrow terminal cuts it down anyway.
+// floatW is room for a place name and its coordinates side by side. Hits come
+// back with the town and country around them, and a list of those is only
+// worth reading when they are not all cut to the same stub.
 const floatW = 84
 
-// floatTop is the row a window hangs from. It is fixed rather than centred
-// because the search list grows and shrinks as you type, and a centred window
-// would walk up the screen as it did — the prompt has to stay under the
-// finger that is typing into it. Five rows down clears the header box and the
-// shortcut line under it.
+// floatTop is the row a window hangs from — fixed, not centred, or the prompt
+// would walk up the screen as the list grows. It clears the header box.
 const floatTop = 5
 
-// window is a floating panel: a title, and rows of content under it. Its
-// width is settled when the rows are built, since they are laid out to fill it.
+// window is a floating panel. Its width is settled when the rows are built,
+// since they are laid out to fill it.
 type window struct {
 	title string
 	width int
 	rows  []wrow
 }
 
-// wrow is one row of a window. Most rows are coloured spans, like everywhere
-// else in the app; the search input renders its own escapes, so it comes
-// through already painted.
+// wrow is one row of a window. Most are coloured spans; the search input
+// renders its own escapes, so it comes through already painted.
 type wrow struct {
 	line render.Line
 	raw  string
@@ -47,22 +39,19 @@ type wrow struct {
 func textRow(l render.Line) wrow { return wrow{line: l} }
 func rawRow(s string) wrow       { return wrow{raw: s} }
 
-// floatWidth is the outer width a window gets on this terminal, leaving room
-// for the frame and a blank column either side of it.
+// floatWidth leaves room for the frame and a blank column either side.
 func (a *App) floatWidth() int { return max(5, min(floatW, a.width-6)) }
 
-// floatInner is the room a window has for content: its width bar the two
-// walls and the space inside each of them.
+// floatInner is the room for content: the width bar the walls and their
+// inside padding.
 func (a *App) floatInner() int { return max(1, a.floatWidth()-4) }
 
-// floatRows is how many rows of content a window can show without running off
-// the screen — the frame takes one row at each end.
+// floatRows is the content rows that fit; the frame takes one at each end.
 func (a *App) floatRows() int { return max(1, a.height-floatTop-2) }
 
 // render draws the window: a rounded frame with the title set into its top
-// edge, the way the header box carries its range tabs. The corners are round
-// where every other box in the app has square ones, so a floating window
-// reads as something laid over the chart rather than another panel in it.
+// edge. The corners are round where every other box has square ones, so it
+// reads as laid over the chart rather than as another panel in it.
 func (w window) render(width int) string {
 	inner := max(1, width-4)
 	frame, name := Style(render.FG), Style(render.Yellow)
@@ -83,8 +72,7 @@ func (w window) render(width int) string {
 	}
 	out = append(out, frame.Render("╰"+strings.Repeat("─", inner+2)+"╯"))
 
-	// A blank column stands either side of the frame so the window lifts
-	// clear of the braille instead of butting straight against it.
+	// A blank column either side lifts the window clear of the braille.
 	for i, l := range out {
 		out[i] = " " + l + " "
 	}
@@ -99,16 +87,14 @@ func (r wrow) text(inner int) string {
 	return Paint([]render.Line{r.line.Truncate(inner)}, true, 0)
 }
 
-// overlay composites a window over the chart — centred across it, hung from
-// floatTop — and clips the result to the terminal: the canvas is the size of
-// the screen, so nothing a window carries can push a line past the edge and
+// overlay composites a window over the chart, centred and hung from floatTop.
+// The canvas is screen-sized, so nothing can push a line past the edge and
 // shear the braille grid under it.
 func (a *App) overlay(w window) string {
 	base := a.chartView()
 	win := w.render(w.width)
 	x := max(0, (a.width-lipgloss.Width(win))/2)
-	// A window taller than the room under floatTop is pushed up rather than
-	// off the bottom of the screen.
+	// A window taller than the room under floatTop is pushed up.
 	y := max(0, min(floatTop, a.height-lipgloss.Height(win)))
 
 	canvas := lipgloss.NewCanvas(a.width, a.height)
@@ -120,8 +106,7 @@ func (a *App) overlay(w window) string {
 }
 
 // highlight paints a line onto a background band, padded the whole way to the
-// given width: a highlight that stopped at the last character would read as a
-// smudge behind the text rather than as the row being picked out.
+// given width so it reads as a picked row rather than a smudge.
 func highlight(l render.Line, w int, bg render.Colour) string {
 	back := palette[bg]
 	var b strings.Builder
@@ -138,7 +123,7 @@ func highlight(l render.Line, w int, bg render.Colour) string {
 }
 
 // fitANSI pads or clips an already-painted string to an exact display width,
-// so a window's right wall stands in one column however ragged its content.
+// so a window's right wall stands in one column.
 func fitANSI(s string, w int) string {
 	switch n := lipgloss.Width(s); {
 	case n > w:
@@ -149,8 +134,8 @@ func fitANSI(s string, w int) string {
 	return s
 }
 
-// fit does the same for plain text, clipping with an ellipsis rather than
-// mid-word: it is place names that run long, and a cut one should say so.
+// fit does the same for plain text, clipping with an ellipsis so a cut place
+// name says it was cut.
 func fit(s string, w int) string {
 	if w <= 0 {
 		return ""

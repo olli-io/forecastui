@@ -1,21 +1,16 @@
 package ui
 
-// Whether the terminal can draw the weather glyphs is not a question a
-// terminal will answer. There is no escape sequence for "what font are you
-// using", and a missing glyph is drawn as tofu rather than reported, so no
-// amount of asking turns up the word "nerd". What can be established is
-// narrower, and it is what this file establishes:
+// No terminal will say what font it is using, and a missing glyph is drawn as
+// tofu rather than reported. What this file can establish is narrower:
 //
-//   - what the reader has already said, through --glyphs or the environment;
+//   - what the reader said, through --glyphs or the environment;
 //   - terminals with no font to patch at all, the Linux console among them;
-//   - whether the glyph advances the cursor by the one cell the grid is built
-//     on, since a double-width fallback shears the whole strip;
-//   - whether any font on the machine covers the codepoint, which is what
-//     fontconfig knows and what every fontconfig terminal falls back through.
+//   - whether the glyph advances the cursor by one cell, since a double-width
+//     fallback shears the braille grid;
+//   - whether any font on the machine covers the codepoint, per fontconfig.
 //
 // None of those proves a Nerd Font is loaded; together they catch the cases
-// where one certainly is not. Anything still unsettled draws the glyphs, since
-// the reader who has the font would otherwise lose them to a guess.
+// where one certainly is not. Anything unsettled draws the glyphs.
 
 import (
 	"bytes"
@@ -42,20 +37,18 @@ const (
 	GlyphPlain
 )
 
-// glyphEnv names the variable that says the same thing as the flag, for a
-// terminal that is always one way or the other.
+// glyphEnv says the same thing as the flag.
 const glyphEnv = "FORECASTUI_GLYPHS"
 
-// probeWait is how long the terminal is given to answer. A reply comes back in
-// a millisecond or two; the wait only matters for a terminal that will never
-// send one, and it is paid once at startup.
+// probeWait is how long the terminal is given to answer; it only matters for
+// one that never will, and it is paid once at startup.
 const probeWait = 100 * time.Millisecond
 
 // fontWait bounds the fontconfig lookup, which reads the font cache.
 const fontWait = 500 * time.Millisecond
 
-// ttyPath is the terminal itself, whatever the standard streams are pointed
-// at. Windows has no such file, and the probe is simply skipped there.
+// ttyPath is the terminal itself, whatever the standard streams point at.
+// Windows has no such file, and the probe is skipped there.
 const ttyPath = "/dev/tty"
 
 // ParseGlyphMode reads the flag or the environment variable.
@@ -72,8 +65,7 @@ func ParseGlyphMode(s string) (GlyphMode, error) {
 }
 
 // NerdFont reports whether the weather symbols should be drawn as Nerd Font
-// glyphs. It is settled once, at startup: a terminal's font does not change
-// under a running program, and the check costs a round trip and a subprocess.
+// glyphs. Settle it once at startup: it costs a round trip and a subprocess.
 func NerdFont(mode GlyphMode) bool {
 	switch mode {
 	case GlyphNerd:
@@ -90,13 +82,10 @@ func NerdFont(mode GlyphMode) bool {
 		return false
 	}
 	advance, font := probeTerminal()
-	// A glyph the terminal lays out as two cells would shear the braille grid
-	// it stands under, whatever font is drawing it.
+	// A two-cell glyph shears the braille grid, whatever font draws it.
 	if advance > 0 && advance != 1 {
 		return false
 	}
-	// Only a handful of terminals answer the font query, but the ones that do
-	// name the font outright.
 	if font != "" {
 		return nerdName(font)
 	}
@@ -106,9 +95,8 @@ func NerdFont(mode GlyphMode) bool {
 	return true
 }
 
-// nerdName reads a font name the way the patcher writes it: the full "Nerd
-// Font", the "NF" abbreviations it also registers, or the symbols-only font
-// that terminals fall back through.
+// nerdName reads a font name the way the patcher writes it: "Nerd Font", the
+// "NF" abbreviations, or the symbols-only fallback font.
 func nerdName(name string) bool {
 	lower := strings.ToLower(name)
 	if strings.Contains(lower, "nerd") || strings.Contains(lower, "symbols") {
@@ -125,16 +113,13 @@ func nerdName(name string) bool {
 	return false
 }
 
-// probeTerminal asks the terminal two things in one round trip: what font it
-// is using, which almost none of them will say, and where the cursor lands
-// after a glyph, which all of them will. The cursor report is the one that is
-// certain to come back, so it doubles as the end of the reply.
+// probeTerminal asks two things in one round trip: what font is in use, which
+// almost no terminal will say, and where the cursor lands after a glyph, which
+// all of them will — so the cursor report doubles as the end of the reply.
 //
-// The conversation goes through /dev/tty rather than the standard streams. It
-// has to be a file the runtime can poll, since a read with no deadline would
-// hang the program on a terminal that answers neither query, and os.Stdin is
-// opened blocking — it takes no deadline at all. Using the terminal directly
-// also keeps the probe out of a redirected stdout.
+// It goes through /dev/tty, not the standard streams: the runtime can poll that
+// file, where blocking os.Stdin takes no read deadline, and it keeps the probe
+// out of a redirected stdout.
 func probeTerminal() (advance int, font string) {
 	tty, err := os.OpenFile(ttyPath, os.O_RDWR, 0)
 	if err != nil {
@@ -150,8 +135,8 @@ func probeTerminal() (advance int, font string) {
 		return 0, ""
 	}
 
-	// The glyph is written from the start of the line so the reported column
-	// is its width, and the line is wiped before anything else is drawn.
+	// Written from the start of the line so the reported column is its width;
+	// the line is wiped afterwards.
 	fmt.Fprintf(tty, "\r\x1b]50;?\x1b\\%c\x1b[6n", fmi.SampleGlyph)
 	reply := readReply(tty)
 	fmt.Fprint(tty, "\r\x1b[2K")
@@ -162,11 +147,9 @@ func probeTerminal() (advance int, font string) {
 	return advance, fontReply(reply)
 }
 
-// rawMode turns off echo and line buffering for the length of the probe, so
-// the terminal's answer is not printed back at the reader and does not wait on
-// a newline that is never coming. It reaches the descriptor through
-// SyscallConn: File.Fd would take the file out of the runtime's poller, and
-// the read deadline with it.
+// rawMode turns off echo and line buffering for the probe. It reaches the
+// descriptor through SyscallConn: File.Fd would take the file out of the
+// runtime's poller, and the read deadline with it.
 func rawMode(tty *os.File) (restore func(), ok bool) {
 	conn, err := tty.SyscallConn()
 	if err != nil {
@@ -183,8 +166,7 @@ func rawMode(tty *os.File) (restore func(), ok bool) {
 	}, true
 }
 
-// readReply collects the terminal's answer up to the cursor report that ends
-// it, or up to the deadline.
+// readReply collects the answer up to the cursor report, or to the deadline.
 func readReply(in *os.File) string {
 	var b []byte
 	buf := make([]byte, 64)
@@ -234,11 +216,8 @@ func fontReply(reply string) string {
 }
 
 // fontHasGlyph asks fontconfig whether any installed font covers the
-// codepoint. Terminals that lay out through fontconfig — most of them on Linux
-// and the BSDs — fall back through every font it lists, so a glyph no font
-// covers is a glyph that terminal cannot draw. Windows and macOS terminals
-// pick their fallbacks elsewhere, so a missing fc-list means "unknown" rather
-// than "no".
+// codepoint; terminals that lay out through it fall back across every font it
+// lists. Elsewhere a missing fc-list means "unknown" rather than "no".
 func fontHasGlyph(r rune) (has, known bool) {
 	if runtime.GOOS == "windows" {
 		return false, false

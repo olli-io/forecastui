@@ -48,8 +48,7 @@ func TestCursorOutsideTheWindowDrawsNothing(t *testing.T) {
 	}
 }
 
-// The arrow is what picks the column out; the frame around it stays a shade
-// darker than the chart, so only the arrow carries the accent.
+// Only the arrow carries the accent; the frame around it stays darker.
 func TestCursorArrowIsLit(t *testing.T) {
 	cols := demoColumns(12)
 	o := Opts{Count: 8, Cursor: 3}

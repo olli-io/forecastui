@@ -1,6 +1,5 @@
-// Package render turns forecast hours into terminal-ready braille charts. It
-// is deliberately free of any terminal or Bubble Tea dependency: it emits
-// coloured spans, and the UI layer decides how to paint them.
+// Package render turns forecast hours into braille charts. It emits coloured
+// spans and has no terminal or Bubble Tea dependency; the UI layer paints them.
 package render
 
 import (
@@ -16,7 +15,7 @@ type Column struct {
 	At     time.Time // local time
 	Temp   fmi.Val
 	Feels  fmi.Val // apparent temperature
-	Rain   float64 // mm/h; absent reads as zero, matching the forecast's own convention
+	Rain   float64 // mm/h; absent reads as zero
 	Wind   fmi.Val
 	Gust   fmi.Val
 	Dir    fmi.Val
@@ -31,9 +30,8 @@ type Column struct {
 const slotStep = 3
 
 // Columns converts forecast hours into chart columns in local time. With slots
-// set, every third hour is kept and each is a centred 3 h rolling mean, so a
-// single spiky hour cannot carry a whole column. The coordinates are the
-// forecast's own, and only decide which hours are drawn as night.
+// set, every third hour is kept as a centred 3 h rolling mean. The coordinates
+// only decide which hours are drawn as night.
 func Columns(hours []fmi.Hour, slots bool, lat, lon float64) []Column {
 	cols := make([]Column, 0, len(hours))
 	var prevDay time.Time
@@ -55,18 +53,15 @@ func Columns(hours []fmi.Hour, slots bool, lat, lon float64) []Column {
 			add(c)
 			continue
 		}
-		// The steps sit on wall-clock multiples of three — 00, 03, 06 and so
-		// on — rather than counting from whatever hour the app was opened, so
-		// the column under 12 is always noon. The first column is therefore
-		// the 3 h mark nearest now that the forecast still covers.
+		// Steps sit on wall-clock multiples of three, not on the hour the app
+		// was opened, so the column under 12 is always noon.
 		if at.Hour()%slotStep != 0 {
 			continue
 		}
 		add(mean(hours, i, at))
 	}
 
-	// In hourly mode the first column is not a day boundary; the divider logic
-	// only ever looks at columns after the first, so clear it for tidiness.
+	// In hourly mode the first column is not a day boundary.
 	if len(cols) > 0 {
 		cols[0].NewDay = slots
 	}
@@ -109,8 +104,7 @@ func mean(hours []fmi.Hour, i int, at time.Time) Column {
 		if v := hours[j].Temp; v.OK {
 			tSum, tN = tSum+v.V, tN+1
 		}
-		// Rain averages over the window size, not over present values: a gap
-		// is dry as far as the forecast is concerned.
+		// Rain averages over the window size, not present values: a gap is dry.
 		rSum, n = rSum+hours[j].Rain.Or(0), n+1
 	}
 	if tN > 0 {
@@ -121,7 +115,7 @@ func mean(hours []fmi.Hour, i int, at time.Time) Column {
 	}
 	c.Wind, c.Gust, c.Cloud, c.POP = avg(gWind), avg(gGust), avg(gCloud), avg(gPOP)
 	c.Feels = avg(gFeels)
-	c.Dir = hours[i].Dir // directions do not average meaningfully across a wrap
+	c.Dir = hours[i].Dir // directions do not average across a wrap
 	return c
 }
 
@@ -130,16 +124,13 @@ func gGust(h fmi.Hour) fmi.Val  { return h.Gust }
 func gCloud(h fmi.Hour) fmi.Val { return h.Cloud }
 func gPOP(h fmi.Hour) fmi.Val   { return h.POP }
 
-// gFeels derives the apparent temperature rather than reading it: the forecast
-// service does not publish one, and a cached hour predating humidity support
-// should still get the best answer its own fields allow.
+// gFeels derives the apparent temperature; the service does not publish one.
 func gFeels(h fmi.Hour) fmi.Val { return fmi.FeelsLike(h.Temp, h.Wind, h.Hum) }
 
-// Scale is the vertical mapping shared by every column. It is computed once
-// over the whole forecast, not per visible window, so scrolling sideways never
-// makes the bars jump.
+// Scale is the vertical mapping shared by every column, computed once over the
+// whole forecast so scrolling sideways never makes the bars jump.
 type Scale struct {
-	Hi, Lo  float64 // temperature bounds actually observed, feels-like included
+	Hi, Lo  float64 // observed temperature bounds, feels-like included
 	Floor   float64 // bottom of the temperature axis
 	RainMax float64
 	WindMax float64
@@ -158,9 +149,7 @@ func NewScale(cols []Column) Scale {
 			s.Hi = math.Max(s.Hi, c.Temp.V)
 			s.Lo = math.Min(s.Lo, c.Temp.V)
 		}
-		// The apparent temperature shares the axis, so it has to fit on it:
-		// a windy freezing hour can feel several degrees below the coldest
-		// reading, and its bar would otherwise run off the floor.
+		// The apparent temperature shares the axis, so it has to fit on it.
 		if c.Feels.OK && !s.Empty {
 			s.Hi = math.Max(s.Hi, c.Feels.V)
 			s.Lo = math.Min(s.Lo, c.Feels.V)
@@ -176,8 +165,7 @@ func NewScale(cols []Column) Scale {
 	if s.Hi == s.Lo {
 		s.Hi = s.Lo + 1.0
 	}
-	// A margin below the coldest reading, so the lowest bar is a visible stub
-	// rather than nothing at all.
+	// A margin below the coldest reading, so the lowest bar is a visible stub.
 	s.Floor = s.Lo - 0.10*(s.Hi-s.Lo) - 0.2
 	return s
 }

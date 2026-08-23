@@ -6,17 +6,16 @@ import (
 	"github.com/olli-io/forecastui/internal/fmi"
 )
 
-// Sky draws one row: the forecast symbol per column. Both forms of a symbol
-// are single-width, so the row stays on the chart's grid whether the terminal
-// has a Nerd Font or falls back to the ASCII stand-ins.
+// Sky draws one row: the forecast symbol per column. Both symbol forms are
+// single-width, so the row stays on the chart's grid either way.
 func Sky(cols []Column, o Opts) []Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi {
 		return nil
 	}
 
-	// The symbols hang under the axis, outside the chart's box, so the gutter
-	// names the row rather than closing it with a wall.
+	// The row hangs outside the chart's box, so the gutter names it rather
+	// than closing it with a wall.
 	sym := Line{rowLabel("symb")}
 	for i := lo; i < hi; i++ {
 		s := fmi.Describe(cols[i].Sym, cols[i].Night)
@@ -28,9 +27,7 @@ func Sky(cols []Column, o Opts) []Line {
 }
 
 // symbolColour tints the symbol by what it means: dry, wet, frozen or violent.
-// A moon is tinted by the fact that it is one — the sky it stands for is the
-// same clear or half-clouded sky the sun draws by day, so nothing else in the
-// row would say the hour is a dark one.
+// A moon is tinted as a moon; nothing else in the row marks a dark hour.
 func symbolColour(code int, night bool) Colour {
 	if fmi.Moonlit(code, night) {
 		return Purple

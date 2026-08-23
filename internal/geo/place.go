@@ -11,8 +11,7 @@ type Place struct {
 	Lon  float64 `json:"lon"`
 }
 
-// Label is how a place is shown in the UI. Coordinates entered directly get
-// no invented name, matching the original script's behaviour.
+// Label is how a place is shown in the UI.
 func (p Place) Label() string {
 	if p.Name != "" {
 		return p.Name

@@ -1,5 +1,5 @@
-// Command forecastui shows the Finnish Meteorological Institute's forecast as
-// an interactive terminal dashboard, or as a one-shot chart with --once.
+// Command forecastui shows the FMI forecast as an interactive terminal
+// dashboard, or as a one-shot chart with --once.
 package main
 
 import (
@@ -54,10 +54,7 @@ func run() error {
 		return err
 	}
 
-	// The font check probes the terminal, so it is made here rather than in
-	// the model: by the time Bubble Tea is running, the screen is not ours to
-	// write a test glyph onto. A one-shot chart draws the same sky row, so it
-	// asks the same question first.
+	// Probes the terminal, so it must run before Bubble Tea owns the screen.
 	nerd := ui.NerdFont(mode)
 
 	if *once {
@@ -70,27 +67,24 @@ func run() error {
 	return err
 }
 
-// positional collects the arguments that are not flags, letting a flag stand
-// after one as well as before it. Go's flag package stops at the first word it
-// does not recognise, so "forecastui --once day --place turku" would leave
-// "--place turku" to be read as a longitude and a latitude. Each positional is
-// set aside and what follows it parsed again.
+// positional collects non-flag arguments, allowing flags to follow them.
+// Go's flag package stops at the first unrecognised word, so each positional
+// is set aside and what follows it parsed again.
 func positional(fs *flag.FlagSet) []string {
 	var args []string
 	for rest := fs.Args(); len(rest) > 0; rest = fs.Args() {
 		args = append(args, rest[0])
-		// A western longitude opens with a minus and would be taken for a
-		// flag, so the coordinates end the interleaving: everything from one
-		// on is positional.
+		// A western longitude opens with a minus and would look like a flag,
+		// so everything from the coordinates on is positional.
 		if len(rest) > 1 && negative(rest[1]) {
 			return append(args, rest[1:]...)
 		}
-		_ = fs.Parse(rest[1:]) // the caller's set decides what an error does
+		_ = fs.Parse(rest[1:])
 	}
 	return args
 }
 
-// negative reports whether an argument is a negative number rather than a flag.
+// negative reports whether an argument is a negative number, not a flag.
 func negative(s string) bool {
 	if !strings.HasPrefix(s, "-") {
 		return false
@@ -115,19 +109,16 @@ flags:
 	flag.PrintDefaults()
 }
 
-// defaultPlace is Turku; only these exact coordinates are labelled by name.
 var defaultPlace = geo.Place{Name: "Turku", Lat: 60.4518, Lon: 22.2666}
 
-// resolve merges flags, positional arguments and config into a location and a
-// span. Positional arguments mirror the legacy script: [hours|week] [lon lat].
+// resolve merges flags, positional arguments ([hours|week] [lon lat]) and
+// config into a location and a span.
 func resolve(args []string, place string, lat, lon float64, hours int, week bool) (geo.Place, ui.Span, error) {
 	if len(args) > 0 {
 		switch args[0] {
 		case "week", "w":
 			week = true
 		case "day", "d":
-			// The two named ranges the interactive view tabs between, so the
-			// positional form reaches the same two by the same names.
 			hours = 48
 		default:
 			n, err := strconv.Atoi(args[0])
@@ -176,7 +167,6 @@ func resolve(args []string, place string, lat, lon float64, hours int, week bool
 	return defaultPlace, span, nil
 }
 
-// runOnce prints a single chart, the way the shell script did.
 func runOnce(p geo.Place, span ui.Span, width int, nerd bool) error {
 	hours, err := onceHours(p, span)
 	if err != nil {
@@ -193,10 +183,8 @@ func runOnce(p geo.Place, span ui.Span, width int, nerd bool) error {
 	return nil
 }
 
-// onceHours is the forecast a one-shot chart draws. A run inside the refresh
-// window is answered from the cache: FMI publishes hourly, so a chart piped
-// into a prompt or a status bar every few seconds would otherwise ask them the
-// same question over and over for the same answer.
+// onceHours serves from cache while fresh: FMI publishes hourly, so a chart
+// piped into a prompt every few seconds must not refetch each time.
 func onceHours(p geo.Place, span ui.Span) ([]fmi.Hour, error) {
 	if hours, at, err := cache.Load(appName, p.Lat, p.Lon, span.Hours); err == nil &&
 		len(hours) > 0 && cache.Fresh(at) {

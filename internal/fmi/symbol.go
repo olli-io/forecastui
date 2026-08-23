@@ -1,16 +1,14 @@
 package fmi
 
-// Symbol describes an FMI weathersymbol3 code. It carries two forms of the
-// same weather: the Nerd Font glyph, and a one-cell ASCII stand-in for a
-// terminal whose font cannot draw it.
+// Symbol describes an FMI weathersymbol3 code in two forms: the Nerd Font
+// glyph and a one-cell ASCII stand-in.
 type Symbol struct {
 	Glyph rune
 	Plain rune
 	Desc  string
 }
 
-// Rune picks the form the terminal can actually draw. Both are one cell wide,
-// so the chart's grid holds either way.
+// Rune picks the form the terminal can draw; both are one cell wide.
 func (s Symbol) Rune(nerd bool) rune {
 	if nerd {
 		return s.Glyph
@@ -18,32 +16,27 @@ func (s Symbol) Rune(nerd bool) rune {
 	return s.Plain
 }
 
-// The glyphs are Nerd Fonts' Material Design weather set (nf-md-weather-*).
-// They are single-width in the Mono and Propo builds, which the chart depends
-// on: each hour owns four columns of a shared grid, and a double-width icon
-// would shear the whole strip. A terminal without a Nerd Font patched in will
-// draw them as tofu.
+// Nerd Fonts' Material Design weather set (nf-md-weather-*), single-width in
+// the Mono and Propo builds — a double-width icon would shear the strip.
 const (
-	nfSunny            = '\U000F0599' // nf-md-weather_sunny
-	nfNight            = '\U000F0594' // nf-md-weather_night
-	nfPartlyCloudy     = '\U000F0595' // nf-md-weather_partly_cloudy
-	nfNightPartlyCloud = '\U000F0F31' // nf-md-weather_night_partly_cloudy
-	nfCloudy           = '\U000F0590' // nf-md-weather_cloudy
-	nfRainy            = '\U000F0597' // nf-md-weather_rainy
-	nfPouring          = '\U000F0596' // nf-md-weather_pouring
-	nfSnowy            = '\U000F0598' // nf-md-weather_snowy
-	nfSnowyHeavy       = '\U000F0F36' // nf-md-weather_snowy_heavy
-	nfSnowyRainy       = '\U000F067F' // nf-md-weather_snowy_rainy
-	nfLightningRainy   = '\U000F067E' // nf-md-weather_lightning_rainy
-	nfLightning        = '\U000F0593' // nf-md-weather_lightning
-	nfHazy             = '\U000F0F30' // nf-md-weather_hazy
-	nfFog              = '\U000F0591' // nf-md-weather_fog
+	nfSunny            = '\U000F0599'
+	nfNight            = '\U000F0594'
+	nfPartlyCloudy     = '\U000F0595'
+	nfNightPartlyCloud = '\U000F0F31'
+	nfCloudy           = '\U000F0590'
+	nfRainy            = '\U000F0597'
+	nfPouring          = '\U000F0596'
+	nfSnowy            = '\U000F0598'
+	nfSnowyHeavy       = '\U000F0F36'
+	nfSnowyRainy       = '\U000F067F'
+	nfLightningRainy   = '\U000F067E'
+	nfLightning        = '\U000F0593'
+	nfHazy             = '\U000F0F30'
+	nfFog              = '\U000F0591'
 )
 
-// The ASCII stand-ins are mnemonic rather than pictorial: at one cell there is
-// no drawing a cloud, so the row reads as a code — lower case for the ordinary
-// fall of it, upper case for the heavy one. Colour still carries the rest, the
-// same way it does under the glyphs.
+// ASCII stand-ins are mnemonic: lower case for the ordinary fall, upper case
+// for the heavy one.
 const (
 	ascSunny     = '*'
 	ascNight     = ')'
@@ -55,13 +48,12 @@ const (
 	ascSnowHeavy = 'S'
 	ascSleet     = 'x'
 	ascThunder   = 't'
-	ascThunderNo = 'T' // thunder without the rain under it
+	ascThunderNo = 'T' // thunder without rain
 	ascMist      = '-'
 	ascFog       = '#'
 )
 
-// SampleGlyph is one glyph out of the set, for asking a terminal what it makes
-// of them. Any of them would do; the sun is the one most fonts patch first.
+// SampleGlyph probes whether a terminal can draw the set.
 const SampleGlyph = nfSunny
 
 var symbols = map[int]Symbol{
@@ -94,17 +86,15 @@ var symbols = map[int]Symbol{
 	92: {nfFog, ascFog, "fog"},
 }
 
-// afterDark holds the glyphs that change once the sun is down. Only the codes
-// that describe the sky itself have one: rain falls the same in the dark, and
-// the set has no moonlit shower to draw it with anyway.
+// afterDark holds the glyphs that change once the sun is down. Only codes
+// describing the sky itself have one.
 var afterDark = map[int]Symbol{
 	1: {Glyph: nfNight, Plain: ascNight},
 	2: {Glyph: nfNightPartlyCloud, Plain: ascPartly},
 }
 
-// Moonlit reports whether Describe would draw this code as a moon. Only the
-// codes for the sky itself have a night form, so this is narrower than "it is
-// dark": a rainy hour at midnight is not moonlit.
+// Moonlit reports whether Describe would draw this code as a moon. Narrower
+// than "it is dark": a rainy hour at midnight is not moonlit.
 func Moonlit(code int, night bool) bool {
 	if !night {
 		return false
@@ -114,8 +104,7 @@ func Moonlit(code int, night bool) bool {
 }
 
 // Describe returns the symbol for a weathersymbol3 code, in its night form
-// where it has one. Unknown and absent codes render as a blank rather than a
-// placeholder, so the strip stays quiet.
+// where it has one. Unknown codes render as a blank.
 func Describe(code int, night bool) Symbol {
 	s, ok := symbols[code]
 	if !ok {

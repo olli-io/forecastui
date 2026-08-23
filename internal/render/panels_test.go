@@ -38,8 +38,7 @@ func TestArrowWrapsAroundNorth(t *testing.T) {
 	}
 }
 
-// Every glyph the panels draw must be one cell wide, or the three-character
-// column grid shears.
+// Every glyph the panels draw must be one cell wide, or the column grid shears.
 func TestPanelGlyphsAreSingleWidth(t *testing.T) {
 	var glyphs []rune
 	glyphs = append(glyphs, arrows[:]...)

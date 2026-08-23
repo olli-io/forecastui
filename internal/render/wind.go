@@ -8,10 +8,9 @@ import (
 	"github.com/olli-io/forecastui/internal/fmi"
 )
 
-// arrows point in the direction the wind is blowing, indexed by compass octant.
+// arrows point where the wind is blowing, indexed by compass octant.
 var arrows = [8]rune{'↓', '↙', '←', '↖', '↑', '↗', '→', '↘'}
 
-// compass names the octants for the detail pane.
 var compass = [8]string{"N", "NE", "E", "SE", "S", "SW", "W", "NW"}
 
 // octant bins a bearing into eight points.
@@ -23,9 +22,8 @@ func octant(deg float64) int {
 	return o
 }
 
-// Arrow is the glyph for wind coming *from* the given bearing. FMI reports the
-// direction wind blows from; the arrow shows where it is going, so it reads the
-// way a weather map does.
+// Arrow is the glyph for wind coming *from* the given bearing; like a weather
+// map, it points where the wind is going.
 func Arrow(fromDeg float64) rune { return arrows[octant(fromDeg)] }
 
 // Compass names the direction wind comes from, e.g. "NW".
@@ -46,8 +44,7 @@ func WindColour(ms float64) Colour {
 	return Red
 }
 
-// Wind draws the wind panel. Each column is a pair of bars mirroring the
-// temperature chart above it: sustained speed on the left, hourly maximum gust
+// Wind draws the wind panel: sustained speed on the left, hourly maximum gust
 // on the right, sharing one scale so gusts read as the margin over the wind.
 func Wind(cols []Column, sc Scale, o Opts) []Line {
 	if o.CellH <= 0 {
@@ -66,8 +63,7 @@ func Wind(cols []Column, sc Scale, o Opts) []Line {
 		return max(1, int(math.Round(v.V/sc.WindMax*float64(dots))))
 	}
 
-	// The day divider rises one row from the rule, as it does in the rain
-	// panel: both are too short to carry the chart's two-row stroke.
+	// One-row divider, as in the rain panel: too short for the chart's stroke.
 	ends := func(i int) bool { return i+1 < len(cols) && cols[i+1].NewDay }
 
 	var out []Line
@@ -87,7 +83,6 @@ func Wind(cols []Column, sc Scale, o Opts) []Line {
 				brailleSpan(gust, Dim),
 				Span{divider(ends(i), i == hi-1, r, o.CellH), Grey})
 		}
-		// The panel hangs inside the chart's box, so it carries its right wall.
 		line = append(line, Span{vert, Grey})
 		out = append(out, line)
 	}
@@ -95,8 +90,7 @@ func Wind(cols []Column, sc Scale, o Opts) []Line {
 	return out
 }
 
-// WindDirs is the row of direction arrows. It sits below the panel's rule, the
-// way the hour labels do, rather than inside the box with the bars.
+// WindDirs is the row of direction arrows, below the panel's rule.
 func WindDirs(cols []Column, o Opts) Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi {
@@ -111,10 +105,8 @@ func WindDirs(cols []Column, o Opts) Line {
 	})
 }
 
-// WindSpeeds is the sustained speed under each column, rounded to whole m/s
-// and tinted like the bar it belongs to — the wind panel's answer to the
-// temperature row under the chart above. Gusts are left to the bars and the
-// detail pane: two numbers per column would not fit in four characters.
+// WindSpeeds is the sustained speed under each column, rounded and tinted like
+// the bar. Gusts are left to the bars: two numbers would not fit in four cells.
 func WindSpeeds(cols []Column, o Opts) Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi {
@@ -135,8 +127,8 @@ func WindSpeeds(cols []Column, o Opts) Line {
 	return line
 }
 
-// divider fills the gap after a column: blank, or the day divider standing in
-// its last character on the panel's bottom row.
+// divider fills the gap after a column: blank, or the day divider in its last
+// character on the panel's bottom row.
 func divider(ends, last bool, row, cellH int) string {
 	g := gapAfter(last)
 	if !ends || row != cellH-1 {

@@ -2,9 +2,8 @@
 #
 #   irm https://raw.githubusercontent.com/olli-io/forecastui/main/install.ps1 | iex
 #
-# Piped into iex there is nowhere to put parameters, so the two knobs are read
-# from the environment instead: FORECASTUI_VERSION pins a release tag and
-# FORECASTUI_BINDIR chooses the install directory.
+# Piped into iex there is nowhere to put parameters, so the knobs are read from
+# the environment: FORECASTUI_VERSION pins a tag, FORECASTUI_BINDIR the target.
 
 $ErrorActionPreference = 'Stop'
 
@@ -17,8 +16,7 @@ if (-not $binDir) { $binDir = Join-Path $env:LOCALAPPDATA 'Programs\forecastui' 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # The archives are named after GOARCH. PROCESSOR_ARCHITECTURE reports the
-# process rather than the machine, so an x86 host process on an ARM64 machine
-# is corrected by the *W6432 variant Windows sets in that case.
+# process, not the machine, so the *W6432 variant corrects an x86 host process.
 $machine = $env:PROCESSOR_ARCHITEW6432
 if (-not $machine) { $machine = $env:PROCESSOR_ARCHITECTURE }
 switch ($machine) {
@@ -44,8 +42,7 @@ try {
     $zip = Join-Path $tmp $name
     Invoke-WebRequest "$base/$name" -OutFile $zip -UseBasicParsing
 
-    # The release publishes one SHA256SUMS covering every archive; the line for
-    # this one is picked out of it by name.
+    # One SHA256SUMS covers every archive; this one's line is picked by name.
     try {
         $sums = (Invoke-WebRequest "$base/SHA256SUMS" -UseBasicParsing).Content
     } catch {
@@ -66,8 +63,8 @@ try {
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
     New-Item -ItemType Directory -Path $binDir -Force | Out-Null
 
-    # Replacing the file while an old copy is still running fails, so the new
-    # binary lands beside the target and is moved over it.
+    # Overwriting a running binary fails, so the new one lands beside the
+    # target and is moved over it.
     $target = Join-Path $binDir 'forecastui.exe'
     $staged = "$target.new"
     Move-Item (Join-Path $tmp 'forecastui.exe') $staged -Force
@@ -77,9 +74,8 @@ try {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# A fresh install directory is no use until it is on PATH. The user-scoped
-# variable is edited, which needs no elevation and survives a reboot; the
-# current session is updated too so forecastui runs straight away.
+# The user-scoped PATH needs no elevation and survives a reboot; the current
+# session is updated too, so forecastui runs straight away.
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (($userPath -split ';') -notcontains $binDir) {
     $updated = if ($userPath) { "$($userPath.TrimEnd(';'));$binDir" } else { $binDir }

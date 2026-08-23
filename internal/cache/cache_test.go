@@ -38,8 +38,7 @@ func TestLoadMissingEntry(t *testing.T) {
 	}
 }
 
-// Each location gets its own file, so switching places does not clobber the
-// forecast for the previous one.
+// Each location gets its own file, so switching places clobbers nothing.
 func TestLocationsDoNotShareAFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", dir)
@@ -85,8 +84,8 @@ func TestStaleEntryIsDropped(t *testing.T) {
 	}
 }
 
-// A two-day forecast cannot answer a request for the week, so the two spans
-// are kept in their own files rather than one overwriting the other.
+// A two-day forecast cannot answer a request for the week, so spans are kept
+// in their own files.
 func TestSpansDoNotShareAFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", dir)

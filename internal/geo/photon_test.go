@@ -32,8 +32,7 @@ func TestLabelNamesAPlaceAndItsContext(t *testing.T) {
 	}
 }
 
-// Photon returns the town, the historic parish and the railway station all
-// under one name. Only one of them is worth offering.
+// Photon returns the town, the parish and the station all under one name.
 func TestCollectDropsRowsThatWouldReadTheSame(t *testing.T) {
 	at := func(lon, lat float64, p props) feature {
 		var f feature
@@ -47,7 +46,7 @@ func TestCollectDropsRowsThatWouldReadTheSame(t *testing.T) {
 
 	got := collect([]feature{
 		at(27.68, 62.89, kuopio),
-		at(27.69, 62.90, kuopio), // the historic parish, same label
+		at(27.69, 62.90, kuopio), // the parish, same label
 		at(27.79, 63.00, airport),
 	}, 8)
 	if len(got) != 2 {

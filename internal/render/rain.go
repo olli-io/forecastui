@@ -7,16 +7,9 @@ import (
 	"github.com/olli-io/forecastui/internal/fmi"
 )
 
-// Rain draws the precipitation panel: the forecast rate in the left cell, the
-// way the temperature and the sustained wind stand in theirs, and beside it in
-// grey the probability of precipitation. The chance runs on a fixed 0–100 axis
-// of its own, unlabelled: it is there to be read against the other columns'
-// chances, and putting a second scale in the gutter would only invite it to be
-// read against the millimetres. The panel hangs between the temperature chart
-// and the wind panel, on the same time line, and it is drawn even when the
-// forecast is dry from end to end: an empty strip on a fixed row keeps the
-// stack from shifting under the reader as a wet hour scrolls in or out, and
-// the chance column still has something to say about a dry hour.
+// Rain draws the precipitation panel: the rate in the left cell, and beside it
+// in grey the probability, on an unlabelled 0–100 axis of its own. It is drawn
+// even for a wholly dry forecast, so the stack never shifts under the reader.
 func Rain(cols []Column, sc Scale, o Opts) []Line {
 	if o.CellH <= 0 {
 		o.CellH = 4
@@ -40,8 +33,7 @@ func Rain(cols []Column, sc Scale, o Opts) []Line {
 		return min(dots, max(1, int(math.Round(v.V/100*float64(dots)))))
 	}
 
-	// A day ends where the next one begins, and its divider rises one row from
-	// the rule — a shorter stroke than the chart's, for a shorter panel.
+	// The divider rises one row from the rule — shorter than the chart's.
 	ends := func(i int) bool { return i+1 < len(cols) && cols[i+1].NewDay }
 
 	var out []Line
@@ -66,12 +58,8 @@ func Rain(cols []Column, sc Scale, o Opts) []Line {
 	return out
 }
 
-// RainLabels is the rate under each column, in whole mm/h. It reads under the
-// temperature row. A dry hour still prints its 0, in grey rather than blue, so
-// the row keeps a number under every column and the eye can run along it —
-// which is also how a wet hour that rounds down to zero stays distinguishable
-// from a dry one. A forecast that is dry from end to end keeps the row too, so
-// it never appears and vanishes as the window scrolls.
+// RainLabels is the rate under each column, in whole mm/h. A dry hour prints a
+// grey 0, so the row keeps a number under every column.
 func RainLabels(cols []Column, sc Scale, o Opts) Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi {
@@ -79,8 +67,8 @@ func RainLabels(cols []Column, sc Scale, o Opts) Line {
 	}
 	line := Line{rowLabel("rain")}
 	for i := lo; i < hi; i++ {
-		// Blue means it rains, whatever the rounding says: an hour of drizzle
-		// prints a blue 0, and only a dry hour gets the grey one.
+		// Blue means it rains whatever the rounding says: drizzle prints a blue
+		// 0, and only a dry hour gets the grey one.
 		mm, col := cols[i].Rain, Blue
 		if mm <= 0 {
 			col = Grey
@@ -90,9 +78,8 @@ func RainLabels(cols []Column, sc Scale, o Opts) Line {
 	return line
 }
 
-// rateLabel is the peak rain rate in the columns the gutter allows. The unit
-// is dropped to "mm" — the legend spells out that it is per hour, and a heavy
-// enough downpour needs those two columns for its digits.
+// rateLabel is the peak rain rate, fitted to the gutter. The unit is shortened
+// to "mm"; the legend spells out that it is per hour.
 func rateLabel(mm float64) string {
 	s := fmt.Sprintf("%.1f mm", mm)
 	if mm >= 10 {

@@ -21,16 +21,14 @@ const (
 	gArrow = '▲'
 )
 
-// DownArrow is the frame's arrow turned over, for a box hanging below the
-// chart to point back at the column the cursor has picked out.
+// DownArrow points back up at the cursor column from a box below the chart.
 const DownArrow = "▼"
 
 func firstRune(s string) rune { return []rune(s)[0] }
 
 // Cursor frames the selected column across every row it is given, capped above
-// and closed below by an arrow. The walls stand in the gaps either side of the
-// column, so they never cover a bar, and are drawn a shade darker than the
-// chart's own frame so they read as an overlay on it.
+// and closed below by an arrow. The walls stand in the gaps either side, so
+// they never cover a bar.
 func Cursor(lines []Line, cols []Column, o Opts) []Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi || o.Cursor < lo || o.Cursor >= hi {
@@ -40,15 +38,14 @@ func Cursor(lines []Line, cols []Column, o Opts) []Line {
 	right := left + Step - 1
 
 	// The cap above the frame, and the foot below it with the arrow under the
-	// left cell: that is where the temperature bar stands.
+	// left cell, where the temperature bar stands.
 	edge := func(l, mid, r rune) Line {
 		rs, cs := explode(nil, right+1)
 		for x := left; x <= right; x++ {
 			rs[x], cs[x] = gHoriz, Dim
 		}
 		rs[left], rs[left+1], rs[right] = l, mid, r
-		// The arrow is the one stroke of the frame that says which column is
-		// picked, so it carries the accent rather than the frame's own shade.
+		// The arrow names the picked column, so it carries the accent.
 		if mid == gArrow {
 			cs[left+1] = Yellow
 		}
@@ -81,7 +78,7 @@ func wallOver(old rune) rune {
 	return gVert
 }
 
-// explode spreads a line into runes and their colours, padded out to n cells.
+// explode spreads a line into runes and their colours, padded to n cells.
 // Every glyph the chart draws is one cell wide, so runes index columns.
 func explode(l Line, n int) ([]rune, []Colour) {
 	var (

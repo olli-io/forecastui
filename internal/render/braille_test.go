@@ -13,8 +13,8 @@ import (
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
-// The fixture is a Turku forecast, and the coordinates decide which hours the
-// sky row draws as night.
+// The fixture is a Turku forecast; the coordinates decide which hours the sky
+// row draws as night.
 const turkuLat, turkuLon = 60.4518, 22.2666
 
 func fixture(t *testing.T) []fmi.Hour {
@@ -181,8 +181,7 @@ func TestScaleEdgeCases(t *testing.T) {
 		}
 	})
 	t.Run("dry forecast", func(t *testing.T) {
-		// Rain has its own panel now, and a dry forecast simply does not get
-		// one; the chart itself must not mention rain at all.
+		// Rain has its own panel; the chart must not mention it.
 		cols := []Column{{At: at, Temp: fmi.Val{V: 5, OK: true}}}
 		for _, l := range Chart(cols, NewScale(cols), Opts{}) {
 			if contains(l.Plain(), "mm") {

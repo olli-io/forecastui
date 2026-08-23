@@ -17,10 +17,8 @@ import (
 
 const appName = "forecastui"
 
-// Panel heights, in braille cells. The chart is the tall one; the rain and
-// wind panels stand under it at a little over half that, enough to read a
-// shape from without crowding out the chart itself. On a short terminal the
-// chart falls back through the shorter heights.
+// Panel heights, in braille cells. On a short terminal the chart falls back
+// through the shorter heights.
 const (
 	chartCells  = 7
 	chartMedium = 5
@@ -28,15 +26,12 @@ const (
 	panelCells  = 4
 )
 
-// refreshEvery is how often the forecast is re-fetched, and equally how long
-// one already in hand counts as current. FMI publishes hourly, so anything
-// faster is just load on their servers; the cache decides the window, since a
-// forecast saved to it is the one a request would return.
+// refreshEvery is how often the forecast is re-fetched, and how long one in
+// hand counts as current. FMI publishes hourly.
 const refreshEvery = cache.Current
 
-// minRefresh is the floor between two requests for the same forecast. The
-// tick and the r key both go through it, so a forecast that could not be
-// loaded is retried at a sane pace rather than on every keypress.
+// minRefresh is the floor between two requests for the same forecast, so a
+// failed load is not retried on every keypress.
 const minRefresh = time.Minute
 
 type mode int
@@ -47,9 +42,7 @@ const (
 	modeFav
 )
 
-// ranges are what tab toggles between: the next two days hour by hour, or the
-// week ahead in 3 h steps. Anything shorter fits inside the 48 h chart already,
-// and anything longer is forecast in name only.
+// ranges are what tab toggles between.
 var ranges = []Span{
 	{Hours: 48},
 	{Hours: 168, Slots: true},
@@ -83,8 +76,7 @@ type App struct {
 	fav    favState
 }
 
-// New builds the root model. nerd says whether the terminal can draw the Nerd
-// Font weather glyphs; it is settled once at startup, since the font cannot
+// New builds the root model. nerd is settled once at startup; the font cannot
 // change under a running program.
 func New(p geo.Place, s Span, cfg *geo.Config, nerd bool) tea.Model {
 	if cfg == nil {
@@ -99,13 +91,10 @@ func New(p geo.Place, s Span, cfg *geo.Config, nerd bool) tea.Model {
 }
 
 func (a *App) Init() tea.Cmd {
-	// The request waits on the cache read rather than racing it: a forecast
-	// saved minutes ago is the one FMI would send back, so whether to ask at
-	// all is not known until the cache has been looked at.
+	// The request waits on the cache read rather than racing it: whether to
+	// ask at all is not known until the cache has been looked at.
 	return tea.Batch(a.loadCache(), tick())
 }
-
-// --- messages ---
 
 type forecastMsg struct {
 	place geo.Place
@@ -127,8 +116,7 @@ func tick() tea.Cmd {
 	return tea.Tick(refreshEvery, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-// fetch requests the forecast for the current place and span. It is the
-// unconditional form; everything reaching for it goes through maybeFetch.
+// fetch is the unconditional form; callers go through maybeFetch.
 func (a *App) fetch() tea.Cmd {
 	place, span := a.place, a.span
 	client := a.client
@@ -147,16 +135,13 @@ func (a *App) fetch() tea.Cmd {
 }
 
 // current reports whether the forecast on screen is recent enough to leave
-// alone. One read back from the cache counts: it is the same data a request
-// would return, whichever run of the program fetched it.
+// alone. One read back from the cache counts.
 func (a *App) current() bool {
 	return len(a.hours) > 0 && a.span0.Hours == a.span.Hours && cache.Fresh(a.fetched)
 }
 
-// maybeFetch is how every refresh is asked for. It sends a request only when
-// there is something to gain by it: current data is left alone, and two
-// requests for the same forecast are never sent within minRefresh of each
-// other. A nil command means the forecast on screen already stands.
+// maybeFetch is how every refresh is asked for. A nil command means the
+// forecast on screen already stands.
 func (a *App) maybeFetch() tea.Cmd {
 	if a.current() || time.Since(a.lastFet) < minRefresh {
 		return nil
@@ -165,9 +150,8 @@ func (a *App) maybeFetch() tea.Cmd {
 	return a.fetch()
 }
 
-// loadCache reads the saved forecast for the current place and span. It always
-// answers, empty-handed if need be, because the reply is what decides whether
-// a request goes out at all.
+// loadCache reads the saved forecast. It always answers, empty-handed if need
+// be, because the reply decides whether a request goes out at all.
 func (a *App) loadCache() tea.Cmd {
 	place, span := a.place, a.span
 	return func() tea.Msg {
@@ -179,9 +163,8 @@ func (a *App) loadCache() tea.Cmd {
 	}
 }
 
-// reload points the view at a place it holds nothing for. The columns on
-// screen are the place just left, so they go, and the rate limit starts over:
-// it guards repeat requests for one forecast, not the move to another.
+// reload points the view at a new place: the old columns go, and the rate
+// limit starts over — it guards repeat requests for one forecast.
 func (a *App) reload() tea.Cmd {
 	a.hours, a.cols, a.span0 = nil, nil, Span{}
 	a.cursor, a.scroll = 0, 0
@@ -191,8 +174,7 @@ func (a *App) reload() tea.Cmd {
 }
 
 // switchSpan moves to another range. What is drawn stays up while the new
-// range loads, rather than blinking out — but it is the old range's data, and
-// span0 says so, so it is never taken for an answer to the new one.
+// range loads; span0 marks it as the old range's data.
 func (a *App) switchSpan(s Span) tea.Cmd {
 	a.span = s
 	a.cursor, a.scroll = 0, 0
@@ -201,11 +183,8 @@ func (a *App) switchSpan(s Span) tea.Cmd {
 	return a.loadCache()
 }
 
-// --- update ---
-
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Search replies can land after the overlay has closed, so they are
-	// handled before the view-specific switch.
+	// Search replies can land after the overlay has closed.
 	if handled, cmd := a.searchUpdate(msg); handled {
 		return a, cmd
 	}
@@ -216,8 +195,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case cachedMsg:
-		// A later switch, or a live result that got in first, leaves the read
-		// with nothing to say.
+		// A later switch, or a live result that got in first, supersedes it.
 		if !msg.place.Same(a.place) || msg.span.Hours != a.span.Hours {
 			return a, nil
 		}
@@ -226,15 +204,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.fetched = msg.at
 			a.stale = !cache.Fresh(msg.at)
 		}
-		// Whether the saved forecast was current is exactly the question of
-		// whether to ask FMI for another one.
 		cmd := a.maybeFetch()
 		a.loading = cmd != nil
 		return a, cmd
 
 	case forecastMsg:
-		// A switch made while the request was out supersedes it, and leaves
-		// the request now in flight for that range to clear the flag.
+		// A switch made while the request was out supersedes it; the request
+		// now in flight for that range clears the flag.
 		if !msg.place.Same(a.place) || msg.span.Hours != a.span.Hours {
 			return a, nil
 		}
@@ -250,8 +226,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tickMsg:
-		// The tick keeps its own time whether or not it fetches, so a refresh
-		// the user asked for a minute ago does not push the next one out.
+		// The tick keeps its own time whether or not it fetches.
 		return a, tea.Batch(a.maybeFetch(), tick())
 
 	case tea.KeyPressMsg:
@@ -352,8 +327,8 @@ func (a *App) moveCursor(by int) {
 	a.clampScroll()
 }
 
-// clampScroll keeps the cursor inside the viewport, scrolling the chart
-// sideways rather than paging it — the week view is one continuous strip.
+// clampScroll keeps the cursor inside the viewport, scrolling sideways rather
+// than paging.
 func (a *App) clampScroll() {
 	n := a.visible()
 	if len(a.cols) <= n {
@@ -371,14 +346,11 @@ func (a *App) clampScroll() {
 
 func (a *App) visible() int { return render.Fits(a.width) }
 
-// drawn is how many columns the chart puts on screen: as many as fit, or as
-// many as are left from the scroll position when the forecast is shorter than
-// that. It is what the boxes measure themselves against.
+// drawn is how many columns the chart puts on screen; the boxes measure
+// themselves against it.
 func (a *App) drawn() int { return max(0, min(a.visible(), len(a.cols)-a.scroll)) }
 
-// opts is what every panel of the chart view is drawn from: the window the
-// scroll position opens on the columns, and the two settings that change how
-// a column is drawn rather than which ones are.
+// opts is what every panel of the chart view is drawn from.
 func (a *App) opts() render.Opts {
 	return render.Opts{
 		Start: a.scroll, Count: a.visible(),
@@ -386,9 +358,8 @@ func (a *App) opts() render.Opts {
 	}
 }
 
-// dayStep is how many columns make up a day. It is read off the columns
-// themselves rather than the span, so it follows whatever step the current
-// view is drawn in — one per hour, or one per 3 h in the aggregated view.
+// dayStep is how many columns make up a day, read off the columns themselves
+// so it follows whatever step the current view is drawn in.
 func (a *App) dayStep() int {
 	if len(a.cols) < 2 {
 		return 1
@@ -409,8 +380,6 @@ func clamp(v, lo, hi int) int {
 	}
 	return v
 }
-
-// --- view ---
 
 func (a *App) View() tea.View {
 	v := tea.NewView(a.render())
@@ -435,42 +404,35 @@ func (a *App) chartView() string {
 
 	opts := a.opts()
 
-	// Temperature, rain and wind are boxes stacked on one time line: each
-	// closes with its own rule, and only the lowest carries the hour labels.
-	// That means every panel is measured before any of it is appended.
-	// Each panel's rule carries the foot of its own scale.
+	// Temperature, rain and wind are boxes stacked on one time line, each
+	// closing with its own rule, so every panel is measured before any is
+	// appended.
 	rule := render.Rule(a.cols, opts, fmt.Sprintf("%.1f°C", a.scale.Lo))
 	zeroRule := render.Rule(a.cols, opts, "0")
 	hours := render.HourLabels(a.cols, opts)
 	temps := render.TempLabels(a.cols, opts)
-	// The rain row is absent only on an empty window, so it is measured rather
-	// than assumed.
 	rains := render.RainLabels(a.cols, a.scale, opts)
 	frame := 0
 	if a.cursor >= a.scroll && a.cursor < a.scroll+a.visible() {
 		frame = 2 // the cursor frame's own cap and foot
 	}
-	// What stands under the chart whatever else is dropped: its rule, the day
-	// and hour rows, the temperatures, and the cursor's own cap and foot.
+	// What stands under the chart whatever else is dropped.
 	fixed := 1 + len(hours) + 1 + frame
 	if rains != nil {
 		fixed++
 	}
 
-	// The header box costs two rows more than a plain line does. On a short
-	// terminal those rows would come out of the chart, and below three cells
-	// a chart stops being one — so the frame is what gives way, not the bars.
+	// The header box costs two rows more than a plain line. Below three cells
+	// a chart stops being one, so the frame gives way before the bars do.
 	hdr := a.header()
 	if a.height-len(hdr)-1-fixed < 3 {
 		hdr = []render.Line{a.headerLine()}
 	}
-	// The shortcut list hangs under the header box, and the chart starts
-	// straight under that: each box's bottom edge is the space below it.
 	lines := append([]render.Line{}, hdr...)
 	lines = append(lines, a.keyLine())
-	budget := a.height - len(lines) // the header and the keys under it
+	budget := a.height - len(lines)
 
-	// Panels are dropped from the bottom up when the terminal is short, so the
+	// Panels are dropped from the bottom up on a short terminal, so the
 	// temperature chart always survives.
 	chartH := chartCells
 	if budget < 20 {
@@ -479,9 +441,7 @@ func (a *App) chartView() string {
 	if budget < 14 {
 		chartH = chartShort
 	}
-	// On a very short terminal those rows can crowd the chart out altogether.
-	// The rain figures give way first — the bars are still there to read —
-	// and only then does the chart itself give up more of its height.
+	// The rain figures give way before the chart does; the bars still read.
 	if budget-fixed < chartH && rains != nil {
 		rains, fixed = nil, fixed-1
 	}
@@ -495,18 +455,16 @@ func (a *App) chartView() string {
 	} else {
 		sky = nil
 	}
-	// The detail pane is the point of having a cursor, so it outranks the
-	// wind panel when there is only room for one of them. It sits straight
-	// under the cursor's foot, with no gap: the arrow points at it.
+	// The detail pane outranks the wind panel: it sits under the cursor's
+	// foot, with no gap, and the arrow points at it.
 	detail := a.detail()
 	if budget >= len(detail) {
 		budget -= len(detail)
 	} else {
 		detail = nil
 	}
-	// Rain gets the space before wind does: an hour's weather is settled more
-	// by whether it is raining than by how hard it is blowing. Its panel costs
-	// its bars plus the rule under them.
+	// Rain gets the space before wind does. Its panel costs its bars plus the
+	// rule under them.
 	rain := render.Rain(a.cols, a.scale, withHeight(opts, panelCells))
 	if rain == nil || budget < len(rain)+1 {
 		rain = nil
@@ -519,8 +477,8 @@ func (a *App) chartView() string {
 		wind = nil
 	}
 
-	// Everything the cursor frame runs through, built as one block so the
-	// frame can be drawn down it in one pass.
+	// Everything the cursor frame runs through, as one block so the frame can
+	// be drawn down it in one pass.
 	stack := append([]render.Line{}, chart...)
 	stack = append(stack, rule)
 	if rain != nil {
@@ -531,8 +489,6 @@ func (a *App) chartView() string {
 		stack = append(stack, wind...)
 		stack = append(stack, zeroRule)
 	}
-	// Hours, then the readings that hang off them: the sky glyph, the
-	// temperature under it, and the wind direction when that panel is up.
 	stack = append(stack, hours...)
 	stack = append(stack, sky...)
 	stack = append(stack, temps)
@@ -554,9 +510,9 @@ func withHeight(o render.Opts, h int) render.Opts {
 	return o
 }
 
-// pad pushes the footer to the bottom of the screen.
+// pad pushes the footer to the bottom of the screen. used counts body lines;
+// one more for the newline already written.
 func (a *App) pad(used int) string {
-	// used counts body lines; one more for the newline already written.
 	if n := a.height - used - 1; n > 0 {
 		return strings.Repeat("\n", n)
 	}
@@ -579,14 +535,13 @@ func (a *App) statusOnly() string {
 	return Paint(lines, true, a.width) + "\n" + a.pad(len(lines)) + a.footer()
 }
 
-// header is the place and the forecast's span, boxed, with the ranges tab
-// toggles between set into the box's top edge.
+// header is the place and span, boxed, with the ranges set into the top edge.
 func (a *App) header() []render.Line {
 	return boxedTop(rangeTabs(a.span), a.headerSpans(), a.drawn(), a.width, render.Grey)
 }
 
 // headerLine is the same reading as a plain indented row, for a terminal too
-// short to spend two more of them on a frame.
+// short for the frame.
 func (a *App) headerLine() render.Line {
 	indent := strings.Repeat(" ", keyIndent)
 	return append(render.Line{{Text: indent, Colour: render.Grey}}, a.headerSpans()...)
@@ -618,8 +573,8 @@ func (a *App) headerSpans() render.Line {
 	return line
 }
 
-// rangeTabs sets the ranges into the header box's top edge, lazygit fashion:
-// the one on screen lit, the other lying along the border beside it.
+// rangeTabs sets the ranges into the header box's top edge, the one on screen
+// lit and the other lying along the border beside it.
 func rangeTabs(active Span) render.Line {
 	line := render.Line{}
 	for _, r := range ranges {
@@ -648,15 +603,11 @@ func ago(t time.Time) string {
 	return fmt.Sprintf("%dh ago", int(d.Hours()))
 }
 
-// hint is one entry of a shortcut list: the key to press, and what pressing it
-// does. The key is what a reader is scanning for, so the two are held apart
-// rather than written as one string — that is what lets the key be lit and the
-// words around it left grey. A hint with no key is a plain instruction.
+// hint is one entry of a shortcut list. The key and its description are held
+// apart so the key can be lit and the words grey. No key means an instruction.
 type hint struct{ key, what string }
 
-// chartHints is the widest shortcut list that still fits beside the footer's
-// indent. Picking by measurement rather than by hard-coded terminal widths
-// keeps the list aligned with the boxes whenever a key is renamed.
+// chartHints is the widest shortcut list that still fits.
 func (a *App) chartHints() []hint {
 	return a.fitHints(
 		[]hint{{"←→", "hour"}, {"↑↓", "day"}, {"tab", "range"}, {"/", "place"},
@@ -666,8 +617,8 @@ func (a *App) chartHints() []hint {
 		[]hint{{"←→", ""}, {"tab", ""}, {"/", ""}, {"f", ""}, {"q", "quit"}})
 }
 
-// fitHints picks the widest of the given lists that still fits beside the
-// footer's indent, so a list is shortened rather than clipped.
+// fitHints picks the widest list that still fits beside the footer's indent,
+// so a list is shortened rather than clipped.
 func (a *App) fitHints(lists ...[]hint) []hint {
 	for _, hs := range lists {
 		if keyIndent+lipgloss.Width(hintLine(hs).Plain()) <= a.width {
@@ -684,8 +635,6 @@ func (a *App) footerHints() []hint {
 	case modeChart:
 		return a.chartHints()
 	case modeSearch:
-		// Typing is the first thing to say: everything else on the list is
-		// what to do with a result once the query has turned one up.
 		return a.fitHints(
 			[]hint{{"", "type to search"}, {"↑↓", "pick"}, {"↵", "select"},
 				{"tab", "favourite"}, {"esc", "close"}},
@@ -702,9 +651,7 @@ func (a *App) footerHints() []hint {
 	return []hint{{"esc", "back"}, {"q", "quit"}}
 }
 
-// hintLine writes a shortcut list out: every key lit, and the words telling
-// you what it does left in the shade, so the list reads as a row of keys
-// rather than as a sentence to be searched for them.
+// hintLine writes a shortcut list out: every key lit, its words in the shade.
 func hintLine(hs []hint) render.Line {
 	var line render.Line
 	for i, h := range hs {
@@ -726,21 +673,18 @@ func hintLine(hs []hint) render.Line {
 	return line
 }
 
-// keyLine is the shortcut list as a row of the body, so the chart view can
-// hang it under the header box rather than at the foot of the screen.
+// keyLine is the shortcut list as a row of the body, hung under the header box
+// rather than at the foot of the screen.
 func (a *App) keyLine() render.Line {
 	keys := hintLine(a.footerHints())
-	// The list starts two columns inside the boxes, which reads as a caption
-	// under the one above it rather than as another panel's left edge. A
-	// terminal too narrow to spare the indent gives it up: the keys
-	// themselves matter more than where they begin.
+	// Indented like a caption under the box above; a terminal too narrow to
+	// spare the indent gives it up.
 	indent := min(keyIndent, max(0, a.width-lipgloss.Width(keys.Plain())))
 	return append(render.Line{{Text: strings.Repeat(" ", indent), Colour: render.Grey}},
 		keys...)
 }
 
-// footer is the same list pinned to the bottom of the screen, for the views
-// that have no header box to hang it from.
+// footer is the same list pinned to the bottom, for views with no header box.
 func (a *App) footer() string {
 	return Paint([]render.Line{a.keyLine()}, true, a.width)
 }

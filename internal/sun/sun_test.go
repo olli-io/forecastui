@@ -29,18 +29,16 @@ func TestNightFollowsTheSeason(t *testing.T) {
 		lon   float64
 		night bool
 	}{
-		// Midsummer in Turku: light well past ten in the evening, dark for
-		// only an hour or two either side of one in the morning.
+		// Midsummer in Turku: light well past ten in the evening.
 		{"midsummer noon", time.Date(2026, 6, 21, 12, 0, 0, 0, loc), turkuLat, turkuLon, false},
 		{"midsummer 22:00", time.Date(2026, 6, 21, 22, 0, 0, 0, loc), turkuLat, turkuLon, false},
 		{"midsummer 01:00", time.Date(2026, 6, 22, 1, 0, 0, 0, loc), turkuLat, turkuLon, true},
-		// Midwinter: the sun clears the horizon by six degrees at noon and is
-		// gone again well before five.
+		// Midwinter: the sun clears the horizon at noon, gone before five.
 		{"midwinter noon", time.Date(2026, 12, 21, 12, 0, 0, 0, loc), turkuLat, turkuLon, false},
 		{"midwinter 16:00", time.Date(2026, 12, 21, 16, 0, 0, 0, loc), turkuLat, turkuLon, true},
 		{"midwinter 08:00", time.Date(2026, 12, 21, 8, 0, 0, 0, loc), turkuLat, turkuLon, true},
 		// Above the arctic circle the sun does not set in June, nor rise in
-		// December — the hour of day tells you nothing at all.
+		// December.
 		{"polar day, midnight", time.Date(2026, 6, 21, 0, 0, 0, 0, loc), laplandLat, laplandLon, false},
 		{"polar night, noon", time.Date(2026, 12, 21, 12, 0, 0, 0, loc), laplandLat, laplandLon, true},
 	} {
@@ -53,12 +51,12 @@ func TestNightFollowsTheSeason(t *testing.T) {
 	}
 }
 
-// The equinox sun crosses the horizon within a few minutes of six, local solar
-// time, wherever you stand.
+// The equinox sun crosses the horizon within minutes of six, solar time,
+// wherever you stand.
 func TestEquinoxSunriseIsNearSix(t *testing.T) {
 	loc := helsinki(t)
-	// Turku is 22.27° east, so solar noon is about an hour and a half before
-	// the clock's — sunrise lands near 07:30 local in late March.
+	// Turku is 22.27° east, so solar noon runs about 90 min early: sunrise
+	// lands near 07:30 local in late March.
 	before := time.Date(2026, 3, 20, 6, 30, 0, 0, loc)
 	after := time.Date(2026, 3, 20, 8, 30, 0, 0, loc)
 	if !Night(before, turkuLat, turkuLon) {

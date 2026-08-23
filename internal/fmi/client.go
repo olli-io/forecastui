@@ -13,16 +13,13 @@ import (
 	"time"
 )
 
-// pal_skandinavia is FMI's own edited forecast: the one ilmatieteenlaitos.fi
-// shows, rather than a raw model run.
+// pal_skandinavia is FMI's edited forecast, not a raw model run.
 const endpoint = "https://opendata.fmi.fi/edr/collections/pal_skandinavia/position"
 
-// params is the full set the UI renders. Ordering is irrelevant to the API.
 const params = "temperature,windspeedms,hourlymaximumgust,winddirection," +
 	"precipitation1h,pop,totalcloudcover,humidity,weathersymbol3"
 
-// ErrNoData means the request succeeded but covered no forecast hours, which
-// happens when the requested range falls outside the collection's horizon.
+// ErrNoData means the request succeeded but covered no forecast hours.
 var ErrNoData = errors.New("fmi: no forecast data returned")
 
 // Client fetches forecasts. The zero value is not usable; use NewClient.
@@ -66,13 +63,11 @@ func (c *Client) Fetch(ctx context.Context, lat, lon float64, from, to time.Time
 
 const stamp = "2006-01-02T15:04:05Z"
 
-// maxBody caps the response read; two weeks of eight parameters is well under
-// a megabyte, so anything larger is a sign something went wrong upstream.
+// maxBody caps the response read; two weeks of parameters is well under a MB.
 const maxBody = 16 << 20
 
-// feature mirrors one GeoJSON feature. The EDR service splits each parameter
-// into its own feature carrying its own time array, so a response for eight
-// parameters is eight features that have to be merged back together.
+// feature mirrors one GeoJSON feature. EDR splits each parameter into its own
+// feature with its own time array, so they must be merged back together.
 type feature struct {
 	Properties map[string]json.RawMessage `json:"properties"`
 }
@@ -92,8 +87,7 @@ func Parse(body []byte) ([]Hour, error) {
 		return nil, fmt.Errorf("fmi: %s", col.Detail)
 	}
 
-	// param name -> timestamp -> value; nil values stay nil so they can be
-	// distinguished from a genuine zero later.
+	// param name -> timestamp -> value; nil stays nil to distinguish gaps from 0.
 	merged := map[string]map[time.Time]*float64{}
 	seen := map[time.Time]bool{}
 
@@ -122,7 +116,7 @@ func Parse(body []byte) ([]Hour, error) {
 			}
 			var vals []*float64
 			if err := json.Unmarshal(rawVals, &vals); err != nil {
-				// Non-numeric parameters are not something this UI renders.
+				// Non-numeric parameters are not rendered.
 				continue
 			}
 			name := strings.ToLower(key)

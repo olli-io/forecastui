@@ -65,8 +65,7 @@ func keyCode(key string) rune {
 	return rune(key[0])
 }
 
-// The view must never emit a line wider than the terminal: Bubble Tea would
-// wrap it and the whole braille grid would shear.
+// A line wider than the terminal would wrap and shear the braille grid.
 func TestViewNeverExceedsTerminalWidth(t *testing.T) {
 	for _, size := range [][2]int{{40, 12}, {60, 20}, {80, 24}, {100, 16}, {200, 50}} {
 		w, h := size[0], size[1]
@@ -105,8 +104,7 @@ func TestCursorStaysInRange(t *testing.T) {
 	}
 }
 
-// Moving right past the edge must scroll the chart, not page it: the week view
-// is one continuous strip.
+// Moving right past the edge must scroll the chart, not page it.
 func TestCursorScrollsTheViewport(t *testing.T) {
 	a := newTestApp(t, 80, 24, 48)
 	n := a.visible()
@@ -193,8 +191,7 @@ func TestDetailTracksTheCursor(t *testing.T) {
 	}
 }
 
-// column is where sub starts in s counted in terminal cells, not bytes: every
-// glyph the chart draws is one cell wide, so runes index columns.
+// column is where sub starts in s, counted in terminal cells rather than bytes.
 func column(s, sub string) int {
 	i := strings.Index(s, sub)
 	if i < 0 {
@@ -203,8 +200,8 @@ func column(s, sub string) int {
 	return len([]rune(s[:i]))
 }
 
-// The detail box's arrow answers the cursor frame's: both must stand in the
-// same column, or the box stops pointing at the hour it describes.
+// The detail box's arrow and the cursor frame's must stand in one column, or
+// the box stops pointing at the hour it describes.
 func TestDetailArrowSitsUnderTheCursors(t *testing.T) {
 	for _, w := range []int{70, 92, 120} {
 		a := newTestApp(t, w, 40, 48)
@@ -242,7 +239,7 @@ func TestFooterLinesUpWithTheBoxes(t *testing.T) {
 	}
 }
 
-// stripANSI drops the colour escapes Paint adds, leaving the cells themselves.
+// stripANSI drops the colour escapes Paint adds.
 func stripANSI(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -257,8 +254,7 @@ func stripANSI(s string) string {
 	return b.String()
 }
 
-// The tabs in the header's top edge name the two ranges rather than measuring
-// them, and the range on screen is the lit one.
+// The header tabs name the two ranges, and the one on screen is lit.
 func TestRangeTabsNameBothRanges(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	lit := func() string {
@@ -284,8 +280,7 @@ func TestRangeTabsNameBothRanges(t *testing.T) {
 }
 
 func TestBoxesLineUpWithTheChart(t *testing.T) {
-	// Both a forecast longer than the window and one shorter than it: a short
-	// span leaves room to the right of the chart, and the boxes have to stop
+	// A short span leaves room right of the chart, and the boxes must stop
 	// where the chart does rather than where the terminal does.
 	for _, w := range []int{70, 80, 100, 120, 160} {
 		for _, hours := range []int{48, 24} {
@@ -298,9 +293,8 @@ func checkBoxWidth(t *testing.T, w, hours int) {
 	t.Helper()
 	a := newTestApp(t, w, 40, hours)
 	rule := render.Rule(a.cols, render.Opts{Start: a.scroll, Count: a.visible()}, "").Plain()
-	// A box stands one column in from the screen's left edge and closes on
-	// the chart's right wall: the chart hangs inside it, rather than the
-	// box standing in the chart's own walls.
+	// A box stands on the screen's left edge and closes on the chart's right
+	// wall, so the chart hangs inside it.
 	for name, box := range map[string]string{
 		"detail": a.detail()[0].Plain(), // each frame's top edge
 		"header": a.header()[0].Plain(),
@@ -334,8 +328,7 @@ func TestDetailFieldsKeepTheirWidth(t *testing.T) {
 	}
 }
 
-// cached builds the message the cache read sends back, for a forecast saved
-// the given time ago.
+// cached builds the cache reply for a forecast saved the given time ago.
 func cached(a *App, age time.Duration) cachedMsg {
 	return cachedMsg{
 		place: a.place, span: a.span,
@@ -380,8 +373,8 @@ func TestEmptyCacheStillFetches(t *testing.T) {
 	}
 }
 
-// The cache is read per span, so a reply for the range that was tabbed away
-// from must not be drawn over the one now on screen.
+// The cache is read per span, so a reply for a range tabbed away from must not
+// be drawn over the one now on screen.
 func TestCacheForAnotherSpanIsIgnored(t *testing.T) {
 	a := New(geo.Place{Name: "Turku"}, Span{Hours: 48}, &geo.Config{}, true).(*App)
 	msg := cachedMsg{place: a.place, span: Span{Hours: 168},
@@ -396,7 +389,7 @@ func TestCacheForAnotherSpanIsIgnored(t *testing.T) {
 
 func TestRefreshIsRateLimited(t *testing.T) {
 	a := newTestApp(t, 80, 24, 48)
-	a.fetched = time.Now().Add(-2 * time.Hour) // stale, so freshness is not what stops it
+	a.fetched = time.Now().Add(-2 * time.Hour) // stale, so freshness is not the reason
 	a.lastFet = time.Now().Add(-10 * time.Second)
 	if cmd := a.maybeFetch(); cmd != nil {
 		t.Error("a request sent ten seconds ago should not be repeated")
@@ -410,7 +403,7 @@ func TestRefreshIsRateLimited(t *testing.T) {
 func TestRefreshKeepsCurrentData(t *testing.T) {
 	a := newTestApp(t, 80, 24, 48)
 	a.fetched = time.Now().Add(-time.Minute)
-	a.lastFet = time.Now().Add(-2 * minRefresh) // the floor is not what stops it
+	a.lastFet = time.Now().Add(-2 * minRefresh) // the floor is not the reason
 	if cmd := a.maybeFetch(); cmd != nil {
 		t.Error("data fetched a minute ago should be left alone")
 	}
@@ -420,8 +413,8 @@ func TestRefreshKeepsCurrentData(t *testing.T) {
 	}
 }
 
-// Switching place or range starts the rate limit over: the floor guards
-// repeat requests for one forecast, not the move to another.
+// Switching place or range starts the rate limit over: the floor guards repeat
+// requests for one forecast, not the move to another.
 func TestSwitchingClearsTheRateLimit(t *testing.T) {
 	a := newTestApp(t, 80, 24, 48)
 	a.lastFet = time.Now()
@@ -434,8 +427,8 @@ func TestSwitchingClearsTheRateLimit(t *testing.T) {
 	}
 }
 
-// Tabbing to another range leaves the old chart up while the new one loads,
-// but the old data is never mistaken for an answer to the new range.
+// Tabbing leaves the old chart up while the new range loads, but the old data
+// is never mistaken for an answer to the new one.
 func TestSwitchingRangeRefetches(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	a.fetched, a.lastFet = time.Now(), time.Now()
@@ -451,8 +444,8 @@ func TestSwitchingRangeRefetches(t *testing.T) {
 	}
 }
 
-// A reply for the range that was tabbed away from must not be drawn under the
-// new range's header.
+// A reply for the range tabbed away from must not be drawn under the new
+// range's header.
 func TestForecastForAnotherSpanIsIgnored(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	before := len(a.cols)
@@ -464,8 +457,8 @@ func TestForecastForAnotherSpanIsIgnored(t *testing.T) {
 	}
 }
 
-// The detail box hangs under the chart and points back at the picked column.
-// Its arrow answers the cursor frame's, so the two are lit alike.
+// The detail box points back at the picked column, its arrow lit like the
+// cursor frame's.
 func TestDetailArrowIsLit(t *testing.T) {
 	o := render.Opts{Start: 0, Count: 8, Cursor: 3}
 	var lit string
@@ -479,8 +472,7 @@ func TestDetailArrowIsLit(t *testing.T) {
 	}
 }
 
-// The vertical arrows step a day at a time, where the horizontal ones step an
-// hour: a strip that runs sideways has nothing else for them to do.
+// The vertical arrows step a day, where the horizontal ones step an hour.
 func TestVerticalArrowsStepADay(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	step := a.dayStep()
@@ -501,8 +493,7 @@ func TestVerticalArrowsStepADay(t *testing.T) {
 	}
 }
 
-// Every key in the shortcut list is lit; the words saying what it does are
-// not, and neither is the punctuation between entries.
+// Every key in the shortcut list is lit; its words and the separators are not.
 func TestShortcutKeysAreLit(t *testing.T) {
 	a := newTestApp(t, 120, 30, 48)
 	for _, m := range []mode{modeChart, modeSearch, modeFav} {

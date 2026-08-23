@@ -1,9 +1,6 @@
-// Deprecated: nothing in the app reaches this file. The daily table was the
-// one view that stood in the chart's place, toggled with d; the key and the
-// mode behind it are gone, and dailyView has no caller. It is kept for the
-// summarising it does — a day's low and high, its rain total, its strongest
-// gust and a sparkline of its curve — in case the table comes back as a range
-// of its own. Delete it if it does not.
+// Deprecated: nothing in the app reaches this file. The daily table was
+// toggled with d; that key and its mode are gone. Kept for the summarising it
+// does, in case the table returns as a range of its own. Delete it if not.
 
 package ui
 
@@ -28,12 +25,11 @@ type day struct {
 	sparkTemps []fmi.Val
 }
 
-// spark renders a temperature trace using the same eight-step block ramp the
-// rest of the UI uses for magnitude.
+// The eight-step block ramp the rest of the UI uses for magnitude.
 var sparkRunes = [...]rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
-// summarise groups hours into days. It works from the hourly data rather than
-// the chart columns, so the table is unaffected by 3 h aggregation.
+// summarise groups hours into days. It works from the hourly data, so the
+// table is unaffected by 3 h aggregation.
 func summarise(hours []fmi.Hour) []day {
 	var days []day
 	for _, h := range hours {
@@ -119,8 +115,7 @@ func (a *App) dailyView() string {
 		}
 		row = append(row, render.Span{Text: gust, Colour: gustCol})
 
-		// A whole day's row always gets the daytime glyph: a moon would be
-		// claiming something about an hour this line does not stand for.
+		// A whole day's row always gets the daytime glyph.
 		s := fmi.Describe(d.sym, false)
 		row = append(row,
 			render.Span{Text: "   " + string(s.Glyph) + " ", Colour: render.FG},
@@ -133,8 +128,8 @@ func (a *App) dailyView() string {
 	return body + "\n" + a.pad(len(lines)) + a.footer()
 }
 
-// spark draws a day's temperature trace. Gaps render as a space so a missing
-// hour is visible as a hole rather than a dip to the floor.
+// spark draws a day's temperature trace. Gaps render as a space, so a missing
+// hour is a hole rather than a dip to the floor.
 func spark(vals []fmi.Val, lo, hi float64) string {
 	var b strings.Builder
 	for _, v := range vals {

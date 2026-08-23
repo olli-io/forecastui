@@ -6,9 +6,8 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// The chart gives each hour four columns, two of them braille bars. A
-// double-width glyph (emoji weather icons are all wide) would shear the whole
-// strip, so every symbol must measure exactly one cell — the night forms too.
+// A double-width glyph would shear the whole strip, so every symbol must
+// measure exactly one cell — the night forms too.
 func TestSymbolGlyphsAreSingleWidth(t *testing.T) {
 	for code := range symbols {
 		for _, night := range []bool{false, true} {
@@ -38,8 +37,8 @@ func TestDescribeKnownCodes(t *testing.T) {
 	}
 }
 
-// After dark a clear sky is a moon, and a rainy one is still just rain: the
-// description never changes, only the glyph, and only where there is one.
+// After dark a clear sky is a moon and rain is still rain: only the glyph
+// changes, and only where there is a night form.
 func TestNightGlyphsOnlyChangeTheSky(t *testing.T) {
 	for code, s := range symbols {
 		night := Describe(code, true)

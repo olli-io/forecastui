@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// A flag is allowed to stand after a positional argument as well as before it,
-// which the flag package does not do on its own.
+// A flag may stand after a positional argument, which the flag package does
+// not allow on its own.
 func TestPositionalReadsFlagsOnEitherSide(t *testing.T) {
 	for _, tc := range []struct {
 		argv  []string
@@ -23,8 +23,7 @@ func TestPositionalReadsFlagsOnEitherSide(t *testing.T) {
 		{argv: []string{"week"}, want: []string{"week"}},
 		{argv: []string{"48", "24.94", "60.17"},
 			want: []string{"48", "24.94", "60.17"}},
-		// A western longitude opens with a minus: it is a coordinate, not a
-		// flag, and neither is anything after it.
+		// A western longitude opens with a minus: a coordinate, not a flag.
 		{argv: []string{"--once", "12", "-24.94", "60.17"},
 			want: []string{"12", "-24.94", "60.17"}, once: true},
 		{argv: nil, want: nil},

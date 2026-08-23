@@ -11,7 +11,7 @@ import (
 )
 
 // Field widths. Every reading is padded to a fixed size, so the box holds its
-// shape as the cursor moves and the eye can stay on one column of the row.
+// shape as the cursor moves.
 const (
 	feelsW = 8         // "(-15.1°)"
 	popW   = 8         // " (100 %)"
@@ -21,38 +21,28 @@ const (
 )
 
 // boxIndent is the column every box hanging off the chart stands in: the
-// screen's own left edge rather than the y-axis out in the middle of the row,
-// so the header and the detail read as the frame around the whole view and the
-// chart hangs inside them. Their right walls still meet the chart's, which is
-// what keeps the two tied together. keyIndent is where the shortcut list
-// starts — two columns inside that, clear of the walls, the way the text
-// inside a box is.
+// screen's left edge, so the header and detail frame the whole view. Their
+// right walls still meet the chart's. keyIndent is where the shortcut list
+// starts, two columns inside that.
 const (
 	boxIndent = 0
 	keyIndent = boxIndent + 2
 )
 
-// gap separates two readings.
 var gap = render.Span{Text: "   ", Colour: render.Grey}
 
-// detail describes the column under the cursor, and marks where it sits. Both
-// views draw it: the app under a cursor the reader moves, the one-shot dump
-// under the hour it is printed in.
+// detail describes the column under the cursor, and marks where it sits.
 func detail(cols []render.Column, o render.Opts, drawn, width int, nerd bool) []render.Line {
 	if o.Cursor < 0 || o.Cursor >= len(cols) {
 		return nil
 	}
 	c := cols[o.Cursor]
 
-	// The footnote under the chart already says the week is drawn in 3 h
-	// means; repeating it on every column only crowds the row.
 	line := render.Line{
 		{Text: c.At.Format("Mon 02 15:04"), Colour: render.FG},
 		gap,
-		// The glyph carries the weather on its own; spelling it out as well
-		// only made the row jump about as the wording changed length. A moon
-		// is purple here as it is in the strip above, or the same glyph would
-		// be two colours at once on the one screen.
+		// No worded description: it made the row jump about as the wording
+		// changed length.
 		{Text: string(fmi.Describe(c.Sym, c.Night).Rune(nerd)), Colour: glyphColour(c)},
 		gap,
 		{
@@ -61,8 +51,7 @@ func detail(cols []render.Column, o render.Opts, drawn, width int, nerd bool) []
 			Colour: render.TempColour(c.Temp.V, c.Temp.OK),
 		},
 		gap,
-		// Zero reads as "0.0 mm/h" rather than "dry": the number is the same
-		// width whether it rains or not.
+		// Zero reads as "0.0 mm/h", so the field is one width either way.
 		{Text: fmt.Sprintf("%4.1f mm/h", c.Rain), Colour: render.Blue},
 		{Text: pad(popW, c.POP.OK, " (%.0f %%)", c.POP), Colour: render.Grey},
 		gap,
@@ -71,9 +60,8 @@ func detail(cols []render.Column, o render.Opts, drawn, width int, nerd bool) []
 		{Text: pad(cloudW, c.Cloud.OK, "%3.0f %% cloudy", c.Cloud), Colour: render.Grey},
 	}
 
-	// The detail box carries the brightest frame on screen. It is the one
-	// thing that changes as the cursor moves, so it reads first; the chart's
-	// own walls and the cursor frame stay a shade back from it.
+	// The brightest frame on screen: it is the one thing that changes as the
+	// cursor moves, so it reads first.
 	return boxedTop(cursorMark(o), line, drawn, width, render.FG)
 }
 
@@ -81,26 +69,23 @@ func (a *App) detail() []render.Line {
 	return detail(a.cols, a.opts(), a.drawn(), a.width, a.nerd)
 }
 
-// cursorMark is the run of top edge that ends in a downward arrow directly
-// under the cursor frame's upward one, so the frame and the box it feeds read
-// as one gesture rather than two separate drawings.
+// cursorMark is the run of top edge ending in a downward arrow directly under
+// the cursor frame's upward one.
 func cursorMark(o render.Opts) render.Line {
 	if o.Cursor < o.Start || o.Cursor >= o.Start+o.Count {
 		return nil
 	}
-	// The edge starts one column past the frame's corner; the bars start at
-	// AxisW. The difference is what the arrow's own column is measured from.
+	// The edge starts one column past the frame's corner; the bars at AxisW.
 	lead := render.AxisW - boxIndent - 1
 	return render.Line{
 		{Text: strings.Repeat("─", lead+(o.Cursor-o.Start)*render.Step), Colour: render.FG},
-		// The arrow belongs to the cursor frame it answers, not to the box it
-		// stands in, so it is lit the same way that frame's arrow is.
+		// Lit like the cursor frame's arrow it answers, not like this box.
 		{Text: render.DownArrow, Colour: render.Yellow},
 	}
 }
 
-// glyphColour keeps the detail box's symbol in the foreground shade, bar the
-// moon: the box does not tint by weather the way the strip does.
+// glyphColour keeps the symbol in the foreground shade, bar the moon: the box
+// does not tint by weather the way the strip does.
 func glyphColour(c render.Column) render.Colour {
 	if fmi.Moonlit(c.Sym, c.Night) {
 		return render.Purple
@@ -108,8 +93,7 @@ func glyphColour(c render.Column) render.Colour {
 	return render.FG
 }
 
-// windText is the arrow, the speed, and the gust when it is worth naming. The
-// compass letters are gone: the arrow says the same thing in one column.
+// windText is the arrow, the speed, and the gust when it is worth naming.
 func windText(c render.Column) string {
 	if !c.Wind.OK {
 		return strings.Repeat(" ", windW)
@@ -149,15 +133,11 @@ func slot(width int, s string) string {
 	return s + strings.Repeat(" ", max(0, width-lipgloss.Width(s)))
 }
 
-// boxedTop wraps a line in a frame that stands on the screen's left edge and
-// closes on the chart's own right wall. cols is how many columns the chart
-// actually draws, which is not always as many as the terminal would hold: a
-// 24 h forecast in a wide window leaves the room to its right empty, and a box
-// measured off the window rather than off the chart would reach past it. The
-// frame is drawn in the given colour, and something can be set into its top
-// edge from the left corner on — the header's range tabs ride there the way
-// lazygit's do, in the border rather than on a row of their own. The line is
-// folded onto more rows when the terminal is too narrow to hold it in one.
+// boxedTop wraps a line in a frame standing on the screen's left edge and
+// closing on the chart's right wall. cols is how many columns the chart draws,
+// not how many the terminal would hold, or the box would reach past it. top is
+// set into the frame's top edge; the line is folded when the terminal is
+// too narrow.
 func boxedTop(top, l render.Line, cols, width int, frame render.Colour) []render.Line {
 	indent := boxIndent
 	// The chart's right wall stands at AxisW + columns*Step - 1, and the
@@ -172,8 +152,6 @@ func boxedTop(top, l render.Line, cols, width int, frame render.Colour) []render
 	pad := strings.Repeat(" ", indent)
 	edge := strings.Repeat("─", inner+2)
 
-	// The top edge, with whatever the caller wants set into it laid over the
-	// dashes from the left corner on.
 	head := render.Line{{Text: pad + "┌", Colour: frame}}
 	if used := lipgloss.Width(top.Plain()); used > 0 && used <= inner+2 {
 		head = append(head, top...)
@@ -207,7 +185,7 @@ func fold(l render.Line, w int) []render.Line {
 			continue // no field starts a row with the gap before it
 		}
 		if lipgloss.Width(s.Text) > w {
-			// A field wider than the whole box: all we can do is clip it.
+			// Wider than the whole box: all we can do is clip it.
 			if t := (render.Line{s}).Truncate(w); len(t) > 0 {
 				s = t[0]
 			}

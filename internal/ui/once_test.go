@@ -10,8 +10,8 @@ import (
 	"github.com/olli-io/forecastui/internal/render"
 )
 
-// onceHours is a forecast that starts on the hour the test runs in, the way
-// the fetch does, so the column the dump picks out is a known one.
+// onceHours starts on the hour the test runs in, the way the fetch does, so
+// the column the dump picks out is known.
 func onceHours(n int) []fmi.Hour {
 	hours := demoHours(n)
 	base := time.Now().UTC().Truncate(time.Hour)
@@ -32,8 +32,7 @@ func onceOutput(t *testing.T, hours []fmi.Hour, span Span, width int) []string {
 	return strings.Split(out, "\n")
 }
 
-// The dump has no cursor to move, so it stands on the hour it was printed in:
-// the first column of a forecast fetched from now.
+// The dump has no cursor to move, so it stands on the hour it was printed in.
 func TestOnceMarksTheCurrentHour(t *testing.T) {
 	lines := onceOutput(t, onceHours(24), Span{Hours: 24}, 120)
 
@@ -49,13 +48,11 @@ func TestOnceMarksTheCurrentHour(t *testing.T) {
 	if foot == "" || top == "" {
 		t.Fatalf("no cursor frame or detail box in the dump:\n%s", strings.Join(lines, "\n"))
 	}
-	// The detail box's arrow answers the frame's: both stand in the column
-	// the reading belongs to, or the box stops pointing at the hour.
+	// The detail box's arrow and the frame's stand in the same column.
 	if got, want := column(top, "▼"), column(foot, "▲"); got != want {
 		t.Errorf("box arrow at %d, frame arrow at %d\n%s\n%s", got, want, foot, top)
 	}
-	// The frame stands on the first column, so the arrow is over the first
-	// bar — at the left edge of the chart, not out in the middle of it.
+	// The frame stands on the first column, so the arrow is over the first bar.
 	if want := render.AxisW; column(foot, "▲") != want {
 		t.Errorf("frame arrow at %d, want the first column at %d\n%s",
 			column(foot, "▲"), want, foot)
@@ -68,8 +65,8 @@ func TestOnceMarksTheCurrentHour(t *testing.T) {
 	}
 }
 
-// A forecast whose hours have all gone by — a stale cache, or a clock that has
-// moved — puts the cursor on the last column rather than off the end of them.
+// A forecast whose hours have all gone by puts the cursor on the last column
+// rather than off the end.
 func TestNowColumnStandsOnTheLatestPastHour(t *testing.T) {
 	base := time.Date(2026, 8, 22, 0, 0, 0, 0, time.UTC)
 	cols := render.Columns(demoHours(6), false, 60.4518, 22.2666)

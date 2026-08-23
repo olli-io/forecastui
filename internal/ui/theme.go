@@ -36,9 +36,8 @@ var styles = func() map[render.Colour]lipgloss.Style {
 // Style returns the lipgloss style for a palette slot.
 func Style(c render.Colour) lipgloss.Style { return styles[c] }
 
-// Paint renders lines with colour, clipped to width. A width of zero means no
-// limit; anything else guarantees no line can wrap, which would shear the
-// braille grid across two terminal rows.
+// Paint renders lines with colour, clipped to width so no line wraps and
+// shears the braille grid. A width of zero means no limit.
 func Paint(lines []render.Line, colour bool, width int) string {
 	var b strings.Builder
 	for i, l := range lines {

@@ -14,17 +14,11 @@ import (
 	"time"
 )
 
-// Photon is OpenStreetMap's data — the same Nominatim draws on — with an
-// autocomplete index in front of it, which is what a search box actually
-// needs. Nominatim matches whole words, so "Kuopio" finds Kuopio and nothing
-// else, while half the places anyone is looking for carry the name in the
-// genitive: Kuopion lentoasema, Kuopion tuomiokirkko. Photon treats the last
-// term as a prefix, so a name typed part of the way still finds them.
+// Photon is OpenStreetMap data with an autocomplete index in front of it: it
+// treats the last term as a prefix, where Nominatim matches only whole words.
 const photon = "https://photon.komoot.io/api/"
 
-// Photon asks only that it not be hammered in bulk. The search is debounced a
-// keystroke's pause already; this is the backstop, and it is short enough that
-// a query still lands while the finger is off the key.
+// Backstop behind the keystroke debounce, so Photon is not hammered in bulk.
 var (
 	rateMu   sync.Mutex
 	lastCall time.Time
@@ -34,7 +28,6 @@ const minInterval = 250 * time.Millisecond
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
-// feature is one hit: a point, and the administrative fields around it.
 type feature struct {
 	Geometry struct {
 		Coordinates []float64 `json:"coordinates"` // lon, lat, in that order
@@ -52,8 +45,8 @@ type props struct {
 	Country     string `json:"country"`
 }
 
-// Search looks up a place by name. It blocks as needed to respect the
-// upstream rate limit, so callers should run it off the UI goroutine.
+// Search looks up a place by name. It blocks for the rate limit, so callers
+// should run it off the UI goroutine.
 func Search(ctx context.Context, app, query string, limit int) ([]Place, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -68,9 +61,7 @@ func Search(ctx context.Context, app, query string, limit int) ([]Place, error) 
 
 	q := url.Values{}
 	q.Set("q", query)
-	// Names that collapse to the same label are dropped below, so ask for
-	// more than will be shown: a town and the station named after it come
-	// back as separate hits and only one of them survives.
+	// Duplicate labels are dropped below, so ask for more than will be shown.
 	q.Set("limit", strconv.Itoa(limit*2))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, photon+"?"+q.Encode(), nil)
@@ -101,11 +92,8 @@ func Search(ctx context.Context, app, query string, limit int) ([]Place, error) 
 	return collect(found.Features, limit), nil
 }
 
-// collect turns the hits into places, dropping the ones that would read the
-// same as a place already on the list. Photon returns the town, the historic
-// parish and the railway station all under one name; three identical rows
-// pointing at three coordinates a few hundred metres apart is not a choice
-// anyone can make.
+// collect turns hits into places, dropping ones whose label is already listed.
+// Photon returns the town, the parish and the station all under one name.
 func collect(features []feature, limit int) []Place {
 	places := make([]Place, 0, limit)
 	seen := make(map[string]bool, limit)
@@ -124,10 +112,8 @@ func collect(features []feature, limit int) []Place {
 	return places
 }
 
-// label names a hit: the place itself, then just enough to tell it from
-// another of the same name — the town it stands in, or failing that the
-// region, and the country. Photon hands these back as separate fields rather
-// than as Nominatim's full administrative chain, so there is nothing to trim.
+// label names a hit: the place, then just enough to tell it from another of
+// the same name — its town, county or state, and the country.
 func label(p props) string {
 	name := p.Name
 	if name == "" {
@@ -149,7 +135,7 @@ func label(p props) string {
 	return strings.Join(parts, ", ")
 }
 
-// wait keeps the app from sending requests back to back.
+// wait keeps requests from going out back to back.
 func wait(ctx context.Context) error {
 	rateMu.Lock()
 	delay := minInterval - time.Since(lastCall)

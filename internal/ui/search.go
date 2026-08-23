@@ -14,18 +14,14 @@ import (
 	"github.com/olli-io/forecastui/internal/render"
 )
 
-// debounce is how long typing must pause before a lookup is sent, so a name
-// typed straight through costs one request rather than one a letter.
+// debounce is how long typing must pause before a lookup is sent.
 const debounce = 400 * time.Millisecond
 
-// markW is the room the cursor and the star take ahead of a name: the arrow
-// stands one column in from the window's own padding, with the star's column
-// after it and a space between that and the name.
+// markW is the room the cursor and the star take ahead of a name.
 const markW = 5
 
-// coordW is the room the coordinates take down the right of a place list:
-// "60.45, 22.27". Two decimals is about a kilometre, which is finer than the
-// forecast grid, and it keeps the column narrow enough to leave the names room.
+// coordW fits "60.45, 22.27". Two decimals is about a kilometre, finer than
+// the forecast grid, and it leaves the names room.
 const coordW = 13
 
 type searchState struct {
@@ -53,8 +49,6 @@ type debounceMsg struct {
 	query string
 }
 
-// --- opening ---
-
 // openSearch raises the search prompt over the chart, empty and focused.
 func (a *App) openSearch() {
 	s := &a.search
@@ -70,8 +64,8 @@ func (a *App) openSearch() {
 	a.mode = modeSearch
 }
 
-// openFavourites raises the favourites list, standing on whichever entry is
-// already on screen — so opening it and pressing enter changes nothing.
+// openFavourites stands on whichever entry is already on screen, so opening it
+// and pressing enter changes nothing.
 func (a *App) openFavourites() {
 	a.fav.selected = 0
 	for i, f := range a.cfg.Favourites {
@@ -82,8 +76,6 @@ func (a *App) openFavourites() {
 	}
 	a.mode = modeFav
 }
-
-// --- keys ---
 
 func (a *App) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
@@ -97,8 +89,7 @@ func (a *App) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.search.selected = clamp(a.search.selected+1, 0, max(0, len(a.search.results)-1))
 		return a, nil
 	case "tab":
-		// Starring the highlighted result leaves the window open, so several
-		// places can be saved in one visit — the point of the list.
+		// The window stays open, so several places can be saved in one visit.
 		if p, ok := a.search.current(); ok {
 			a.cfg.Toggle(p)
 			_ = a.cfg.Save(appName) // a read-only config should not eat the key
@@ -144,7 +135,6 @@ func (a *App) favKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "end", "G":
 		a.fav.selected = last
 	case "/", "s":
-		// The list is where you notice one is missing, so it opens the search.
 		a.openSearch()
 	case "x", "d", "F", "delete", "backspace":
 		if n > 0 {
@@ -171,10 +161,8 @@ func (s *searchState) current() (geo.Place, bool) {
 	return s.results[s.selected], true
 }
 
-// --- messages ---
-
-// searchUpdate handles the search-specific messages that arrive while any view
-// is showing, since a reply can land after the window is closed.
+// searchUpdate handles search messages in any view, since a reply can land
+// after the window is closed.
 func (a *App) searchUpdate(msg tea.Msg) (bool, tea.Cmd) {
 	switch msg := msg.(type) {
 	case debounceMsg:
@@ -203,8 +191,7 @@ func lookup(seq int, query string) tea.Cmd {
 	}
 }
 
-// goTo switches location, remembers it as the default, and loads the forecast
-// for it — from the cache alone, if the place was last looked at minutes ago.
+// goTo switches location, remembers it as the default, and loads its forecast.
 func (a *App) goTo(p geo.Place) tea.Cmd {
 	a.place = p
 	a.cfg.Default = &p
@@ -218,15 +205,12 @@ func (a *App) toggleFavourite() (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// --- windows ---
-
 // searchWindow is the prompt, then whatever the query has turned up. Each
 // result carries its own star, so the list doubles as the favourites editor.
 func (a *App) searchWindow() window {
 	width := a.floatWidth()
 	inner := a.floatInner()
-	// The input renders itself, so it is told how much room it has rather
-	// than being clipped afterwards.
+	// The input renders itself, so it is told its room rather than clipped.
 	a.search.input.SetWidth(max(1, inner-lipgloss.Width(a.search.input.Prompt)-1))
 
 	rows := []wrow{rawRow(a.search.input.View()), textRow(blank())}
@@ -242,8 +226,7 @@ func (a *App) searchWindow() window {
 		rows = append(rows, note("nothing found", inner))
 	}
 
-	// The keys are read off the tips bar under the header, the same place
-	// every other view's are, so the window is all list: the results get the
+	// The keys live on the tips bar under the header, so the results get the
 	// whole of the room left under the prompt.
 	room := max(1, a.floatRows()-len(rows))
 	lo, hi := scrollTo(len(a.search.results), a.search.selected, room)
@@ -272,9 +255,8 @@ func (a *App) favWindow() window {
 	return window{title: "Favourites", width: width, rows: rows}
 }
 
-// placeRow is one line of either list: the cursor, the star, the name, and the
-// coordinates ranged down the right-hand edge. Every field holds a fixed
-// width, so the two columns stay columns as the list scrolls.
+// placeRow is one line of either list: cursor, star, name, and coordinates
+// down the right edge, each a fixed width so the columns stay columns.
 func (a *App) placeRow(p geo.Place, on bool, inner int) wrow {
 	marker, colour := "   ", render.Grey
 	if on {
@@ -289,8 +271,8 @@ func (a *App) placeRow(p geo.Place, on bool, inner int) wrow {
 		{Text: marker, Colour: colour},
 		{Text: star, Colour: starCol},
 	}
-	// The coordinates are dropped before the name is: a name you cannot read
-	// is no use, and the coordinates only ever settle a tie between two of them.
+	// The coordinates are dropped before the name is; they only ever settle a
+	// tie between two of the same name.
 	if nameW := inner - markW - coordW; nameW < 8 {
 		line = append(line, render.Span{
 			Text: fit(p.Label(), max(0, inner-markW)), Colour: colour})
@@ -304,8 +286,7 @@ func (a *App) placeRow(p geo.Place, on bool, inner int) wrow {
 	if !on {
 		return textRow(line)
 	}
-	// The selected row is banded as well as arrowed, so the eye lands on it
-	// without having to hunt down the marker column.
+	// Banded as well as arrowed, so the eye need not hunt the marker column.
 	return rawRow(highlight(line, inner, render.Dim))
 }
 

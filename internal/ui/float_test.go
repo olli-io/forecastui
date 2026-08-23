@@ -16,8 +16,8 @@ func places(names ...string) []geo.Place {
 	return out
 }
 
-// withResults opens the search window on a canned set of results, so the tests
-// never touch the network.
+// withResults opens the search window on canned results, so tests never touch
+// the network.
 func withResults(t *testing.T, a *App, names ...string) {
 	t.Helper()
 	a.openSearch()
@@ -26,8 +26,8 @@ func withResults(t *testing.T, a *App, names ...string) {
 	a.search.selected = 0
 }
 
-// A floating window is drawn over the chart, not in place of it: the header
-// box and the footer must both survive underneath.
+// A floating window is drawn over the chart: the header box and footer must
+// survive underneath.
 func TestSearchWindowFloatsOverTheChart(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	withResults(t, a, "Turku, Finland")
@@ -52,7 +52,7 @@ func TestFavouritesWindowFloatsOverTheChart(t *testing.T) {
 }
 
 // The compositor clips to the screen, so a window can never shear the grid
-// under it however long a place name is or however small the terminal.
+// under it.
 func TestFloatingWindowsFitTheTerminal(t *testing.T) {
 	for _, size := range [][2]int{{20, 8}, {40, 12}, {60, 20}, {80, 24}, {100, 16}, {200, 50}} {
 		w, h := size[0], size[1]
@@ -82,8 +82,7 @@ func TestFloatingWindowsFitTheTerminal(t *testing.T) {
 	}
 }
 
-// The prompt stays put as results come and go: a window that walked up the
-// screen while you typed would take the input line with it.
+// The prompt stays put as results come and go.
 func TestSearchPromptDoesNotMoveAsResultsArrive(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	a.openSearch()
@@ -95,8 +94,7 @@ func TestSearchPromptDoesNotMoveAsResultsArrive(t *testing.T) {
 	}
 }
 
-// The point of the overhaul: several places can be starred without leaving
-// the search window.
+// Several places can be starred without leaving the search window.
 func TestSearchStarsMoreThanOnePlace(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	withResults(t, a, "Turku", "Tromsø", "Kiruna")
@@ -120,8 +118,7 @@ func TestSearchStarsMoreThanOnePlace(t *testing.T) {
 	}
 }
 
-// A starred result is marked as such the moment it is starred, so the list
-// shows what has been saved so far.
+// A result is marked the moment it is starred.
 func TestSearchMarksStarredResults(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	withResults(t, a, "Turku", "Tromsø")
@@ -148,8 +145,7 @@ func TestSearchEnterGoesToTheSelection(t *testing.T) {
 	}
 }
 
-// f opens the list standing on the place already on screen, so enter is a
-// no-op rather than a surprise jump.
+// f opens the list on the place already on screen, so enter is a no-op.
 func TestFavouritesOpenOnTheCurrentPlace(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	a.cfg.Favourites = places("Tromsø", "Kiruna", "Turku")
@@ -187,8 +183,7 @@ func TestFavouritesWindowUnstars(t *testing.T) {
 	}
 }
 
-// The list is where you notice a favourite is missing, so / opens the search
-// from it without a trip back through the chart.
+// / opens the search from the list, without a trip back through the chart.
 func TestSearchOpensFromTheFavouritesWindow(t *testing.T) {
 	a := newTestApp(t, 100, 30, 48)
 	a.cfg.Favourites = places("Tromsø")

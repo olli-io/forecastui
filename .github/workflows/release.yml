@@ -1,7 +1,6 @@
 name: release
 
-# Tags are the only trigger: a release is cut by pushing v1.2.3, and the tag it
-# was cut from is the version the archives are named after.
+# A release is cut by pushing v1.2.3; the tag names the archives.
 on:
   push:
     tags:
@@ -28,8 +27,8 @@ jobs:
         run: |
           version=${GITHUB_REF_NAME#v}
           mkdir -p dist
-          # Pure Go, so every target cross-compiles from this one runner.
-          # CGO stays off to keep the Linux builds free of a glibc floor.
+          # Pure Go, so everything cross-compiles here. CGO stays off to keep
+          # the Linux builds free of a glibc floor.
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 \
                         windows/amd64 windows/arm64; do
             os=${target%/*}
@@ -41,8 +40,7 @@ jobs:
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
               go build -trimpath -ldflags '-s -w' -o "dist/forecastui$ext" ./cmd/forecastui
 
-            # The archive holds the bare binary and nothing else, which is what
-            # the install scripts expect to find inside it.
+            # The bare binary and nothing else, as the install scripts expect.
             if [ "$os" = windows ]; then
               (cd dist && zip -q "$name.zip" forecastui.exe)
             else

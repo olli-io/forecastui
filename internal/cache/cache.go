@@ -1,5 +1,5 @@
 // Package cache stores the last good forecast per location, so the UI can
-// show something the moment it starts and survive a lost network.
+// show something at startup and survive a lost network.
 package cache
 
 import (
@@ -17,21 +17,17 @@ type entry struct {
 	Hours   []fmi.Hour `json:"hours"`
 }
 
-// maxAge is how long a cached forecast is worth showing at all. Beyond a day
-// the bars would be describing weather that has already happened.
+// maxAge is how long a cached forecast is worth showing at all.
 const maxAge = 24 * time.Hour
 
-// Current is how long a saved forecast is the current one. FMI publishes
-// hourly, so a forecast fetched inside this window is the same data another
-// request would return, and asking again buys nothing.
+// Current is how long a saved forecast counts as current; FMI publishes hourly.
 const Current = 10 * time.Minute
 
 // Fresh reports whether a forecast fetched at t still counts as current.
 func Fresh(t time.Time) bool { return !t.IsZero() && time.Since(t) < Current }
 
-// path keys an entry by location and by the span it was fetched for: two days
-// of hours cannot answer a request for the week, so the two spans are kept
-// apart rather than one overwriting the other.
+// path keys an entry by location and span: two days of hours cannot answer a
+// request for the week, so spans are kept apart.
 func path(app string, lat, lon float64, span int) (string, error) {
 	dir, err := os.UserCacheDir()
 	if err != nil {
@@ -41,8 +37,7 @@ func path(app string, lat, lon float64, span int) (string, error) {
 	return filepath.Join(dir, app, name), nil
 }
 
-// Save writes a forecast to the cache. Failures are reported but never fatal:
-// a working cache is a convenience, not a requirement.
+// Save writes a forecast to the cache.
 func Save(app string, lat, lon float64, span int, hours []fmi.Hour) error {
 	p, err := path(app, lat, lon, span)
 	if err != nil {
@@ -62,8 +57,8 @@ func Save(app string, lat, lon float64, span int, hours []fmi.Hour) error {
 	return os.Rename(tmp, p)
 }
 
-// Load returns the cached forecast and when it was fetched. A missing, broken
-// or stale entry reads as empty rather than as an error worth showing.
+// Load returns the cached forecast and when it was fetched. A stale entry
+// reads as empty.
 func Load(app string, lat, lon float64, span int) ([]fmi.Hour, time.Time, error) {
 	p, err := path(app, lat, lon, span)
 	if err != nil {

@@ -6,8 +6,8 @@ import (
 	"github.com/olli-io/forecastui/internal/render"
 )
 
-// Header is the place and time-span line above a chart as a plain indented
-// row, for the daily table. The chart views box headerText instead.
+// Header is headerText as a plain indented row, for the daily table; the chart
+// views box it instead.
 func Header(place string, cols []render.Column, slots bool) render.Line {
 	return append(render.Line{{Text: "  ", Colour: render.Grey}},
 		headerText(place, cols, slots)...)

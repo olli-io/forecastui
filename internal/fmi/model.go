@@ -4,8 +4,8 @@ package fmi
 
 import "time"
 
-// Val is a forecast value that may be absent. The upstream API returns JSON
-// null for gaps, and a missing temperature must not read as 0 °C.
+// Val is a forecast value that may be absent; the API returns null for gaps,
+// and a missing temperature must not read as 0 °C.
 type Val struct {
 	V  float64
 	OK bool

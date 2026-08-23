@@ -24,8 +24,8 @@ func TestParseMergesFeaturesIntoHours(t *testing.T) {
 	if len(hours) != 48 {
 		t.Fatalf("got %d hours, want 48", len(hours))
 	}
-	// Every parameter lives in its own feature; a correct merge means one hour
-	// carries all of them at once.
+	// Every parameter lives in its own feature; a correct merge gives one hour
+	// all of them.
 	h := hours[0]
 	for name, v := range map[string]Val{
 		"temp": h.Temp, "wind": h.Wind, "gust": h.Gust,

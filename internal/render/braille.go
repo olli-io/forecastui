@@ -8,8 +8,8 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Colour names the palette slot a span should be painted in. The render
-// package never emits escape codes; internal/ui maps these onto lipgloss.
+// Colour names a palette slot. The render package never emits escape codes;
+// internal/ui maps these onto lipgloss.
 type Colour uint8
 
 const (
@@ -34,7 +34,7 @@ type Span struct {
 // Line is one terminal row.
 type Line []Span
 
-// Plain renders a line without colour, for golden tests and NO_COLOR output.
+// Plain renders a line without colour.
 func (l Line) Plain() string {
 	var b strings.Builder
 	for _, s := range l {
@@ -60,21 +60,18 @@ var (
 
 const (
 	brailleBase = 0x2800
-	// Step is the width of one column: two braille cells plus the gap after
-	// them. Gap is that gap; its last character carries the day divider.
+	// Step is one column: two braille cells plus the gap after them. Gap's
+	// last character carries the day divider.
 	Step = 4
 	Gap  = Step - 2
-	// AxisW is the width of the left gutter: a seven-wide label — room for a
-	// temperature and its unit, "-10.4°C" — the axis itself, and one blank
-	// column for the cursor frame to stand in.
-	AxisW = 9
-	// AxisCol is the column the y-axis itself stands in, just past the label.
-	AxisCol = AxisW - 2
+	// AxisW is the left gutter: a seven-wide label ("-10.4°C"), the axis, and
+	// one blank column for the cursor frame.
+	AxisW   = 9
+	AxisCol = AxisW - 2 // where the y-axis itself stands
 )
 
-// gapAfter is the blank room following a column's two cells. The last column
-// on screen gets one less, so the right wall stands the same single space from
-// the bars that the y-axis does on the left instead of two.
+// gapAfter is the blank room after a column's two cells. The last column gets
+// one less, so the right wall stands as close to the bars as the y-axis does.
 func gapAfter(last bool) int {
 	if last {
 		return Gap - 1
@@ -83,7 +80,7 @@ func gapAfter(last bool) int {
 }
 
 // cell returns the braille bits for a bar `dots` tall at cell row `row`,
-// counting rows from the top.
+// counting from the top.
 func cell(dots, row, cellH int) rune {
 	base := 4 * (cellH - 1 - row)
 	var bits rune
@@ -95,9 +92,8 @@ func cell(dots, row, cellH int) rune {
 	return bits
 }
 
-// TempColour is the cold-to-hot ramp. Blue is reserved for rain, so the cold
-// end runs purple → aqua rather than through blue: otherwise a freezing hour
-// and a wet hour would be the same colour side by side.
+// TempColour is the cold-to-hot ramp. The cold end runs purple → aqua, not
+// through blue, which is reserved for rain.
 func TempColour(v float64, ok bool) Colour {
 	if !ok {
 		return Grey
@@ -118,8 +114,7 @@ func TempColour(v float64, ok bool) Colour {
 }
 
 // Opts controls one chart rendering. Start and Count select the visible window
-// into cols; the scale is shared across the whole set, so panning does not
-// rescale the bars.
+// into cols; the scale is shared, so panning does not rescale the bars.
 type Opts struct {
 	Start  int
 	Count  int
@@ -139,9 +134,8 @@ const (
 )
 
 // Chart draws the temperature bars for cols[Start:Start+Count]: the air
-// temperature, and beside it the apparent temperature in the same faint grey
-// the wind panel gives its gusts, so the pair reads as a reading and its
-// margin. The rule and hour labels below them come from Axis.
+// temperature, and beside it the apparent temperature in faint grey. The rule
+// and hour labels below them come from Axis.
 func Chart(cols []Column, sc Scale, o Opts) []Line {
 	if o.CellH <= 0 {
 		o.CellH = 7
@@ -152,9 +146,8 @@ func Chart(cols []Column, sc Scale, o Opts) []Line {
 	}
 	dots := o.CellH * 4
 
-	// Where 0 °C falls on the dot grid. Bars are drawn from the graph floor,
-	// not from freezing, so this is only a reference line: it goes in the gaps
-	// and through cells no bar reaches, never over a bar itself.
+	// Where 0 °C falls on the dot grid. Only a reference line: it goes in the
+	// gaps and through cells no bar reaches, never over a bar.
 	zeroRow, zeroSub := -1, 0
 	if z := sc.pos(0, dots); z >= 0 && z <= float64(dots-1) {
 		idx := int(math.Round(z))
@@ -180,16 +173,14 @@ func Chart(cols []Column, sc Scale, o Opts) []Line {
 		return max(1, int(math.Round(sc.pos(c.Feels.V, dots))))
 	}
 
-	// A day ends where the next one begins; that column's gap becomes the
-	// divider. Looking at the full slice, not the window, keeps the divider
-	// visible when a day boundary sits at the right edge of the viewport.
+	// A day ends where the next begins; that column's gap becomes the divider.
+	// Testing the full slice keeps it visible at the right edge of the viewport.
 	ends := func(i int) bool { return i+1 < len(cols) && cols[i+1].NewDay }
 
 	var out []Line
 	for r := 0; r < o.CellH; r++ {
-		// Only the top of the scale is labelled here. The bottom of it belongs
-		// on the rule under the panel, which is where the bars actually stand;
-		// the last braille row is a whole degree or two above it.
+		// Only the top of the scale is labelled here; the bottom belongs on the
+		// rule under the panel, where the bars actually stand.
 		var label string
 		switch {
 		case r == 0:
@@ -225,8 +216,7 @@ func Chart(cols []Column, sc Scale, o Opts) []Line {
 					line = append(line, Span{string(rune(brailleBase + z)), Grey})
 				}
 			}
-			// The day divider rises from the axis as a two-row tick rather
-			// than walling the bars off from each other.
+			// The day divider is a two-row tick, not a full wall.
 			g := gapAfter(i == hi-1)
 			switch {
 			case ends(i) && r >= o.CellH-2:
@@ -245,21 +235,16 @@ func Chart(cols []Column, sc Scale, o Opts) []Line {
 	return out
 }
 
-// Gutter right-aligns an axis label in the room before the axis itself, so
-// every panel's numbers stand in the same column whatever they measure.
+// Gutter right-aligns an axis label before the axis, so every panel's numbers
+// stand in the same column.
 func Gutter(label string) string { return fmt.Sprintf("%*s", AxisCol, label) }
 
-// rowLabel names one of the rows that hang under the boxes — the hours, the
-// sky symbols, the readings — in the same gutter the panels' scales stand in.
-// It is dim, so the names introduce their rows without competing with them,
-// and an empty name is simply the blank gutter those rows carried before.
+// rowLabel names one of the rows hanging under the boxes, in the panels'
+// gutter. An empty name leaves the gutter blank.
 func rowLabel(name string) Span { return Span{Gutter(name) + "  ", Dim} }
 
-// Rule is the line that closes a panel's box, meeting each day divider with a
-// tick. Every stacked panel draws its own, so each keeps its own y-axis, and
-// each carries the bottom of that axis in its gutter: the rule is the line the
-// bars stand on, so the number belongs beside it rather than a row higher.
-// An empty label leaves the gutter blank.
+// Rule closes a panel's box, meeting each day divider with a tick. Its label
+// is the bottom of that panel's y-axis, since the bars stand on the rule.
 func Rule(cols []Column, o Opts, label string) Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi {
@@ -283,9 +268,8 @@ func Rule(cols []Column, o Opts, label string) Line {
 	return Line{{rule.String(), Grey}}
 }
 
-// HourLabels is the day row and the time row under it, in that order: the day
-// names the hours that follow it, so it reads like a heading rather than a
-// footnote. It goes under the bottom panel of a stack, whichever that is.
+// HourLabels is the day row and the time row under it, drawn beneath the
+// bottom panel of a stack.
 func HourLabels(cols []Column, o Opts) []Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi {
@@ -299,9 +283,8 @@ func HourLabels(cols []Column, o Opts) []Line {
 		avoid = append(avoid, x-1, x+Step-2)
 	}
 	days := labelRow(n, "", FG, func(i int) (string, string) {
-		// The leftmost column always names its day, whether or not one begins
-		// there. Scrolled into the middle of a Tuesday the row would otherwise
-		// stay blank until the next midnight came into view.
+		// The leftmost column always names its day, or the row stays blank
+		// until the next midnight scrolls into view.
 		if i > 0 && !cols[lo+i].NewDay {
 			return "", ""
 		}
@@ -313,8 +296,8 @@ func HourLabels(cols []Column, o Opts) []Line {
 	return []Line{days, hours}
 }
 
-// TempLabels is the temperature under each column, rounded to whole degrees
-// and tinted like the bar it belongs to. It reads under the hour row.
+// TempLabels is the temperature under each column, rounded and tinted like
+// the bar it belongs to.
 func TempLabels(cols []Column, o Opts) Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
 	if lo == hi {
@@ -335,8 +318,7 @@ func TempLabels(cols []Column, o Opts) Line {
 	return line
 }
 
-// Axis closes a lone chart: its rule, carrying the bottom of the temperature
-// scale, the hour labels beneath it and the temperatures under those.
+// Axis closes a lone chart: rule, hour labels, temperatures.
 func Axis(cols []Column, sc Scale, o Opts) []Line {
 	rule := Rule(cols, o, fmt.Sprintf("%.1f°", sc.Lo))
 	if rule == nil {
@@ -347,11 +329,9 @@ func Axis(cols []Column, sc Scale, o Opts) []Line {
 
 // labelRow lays text under each column. Labels may spill into the following
 // columns' space, so when two fall close together the earlier one falls back
-// to its short form; the script this replaces simply printed them on top of
-// each other ("Sat 22Sun 23").
+// to its short form.
 func labelRow(n int, name string, col Colour, at func(i int) (full, short string), avoid ...int) Line {
-	// Columns the cursor frame owns: a label that would be cut by one falls
-	// back to its short form.
+	// Columns the cursor frame owns; a label cut by one falls back to short.
 	blocked := func(start, width int) bool {
 		for _, x := range avoid {
 			if x >= start && x < start+width {
@@ -363,7 +343,7 @@ func labelRow(n int, name string, col Colour, at func(i int) (full, short string
 
 	row := []rune(strings.Repeat(" ", n*Step))
 
-	// Where the next label begins, so each one knows how much room it has.
+	// Where the next label begins, so each knows how much room it has.
 	next := make([]int, n)
 	limit := len(row)
 	for i := n - 1; i >= 0; i-- {
@@ -412,16 +392,12 @@ func window(total, start, count int) (int, int) {
 	return start, start + count
 }
 
-// MaxCols is the widest a chart is ever drawn, in columns: a full two days of
-// hourly readings. The week view holds more columns than that, but letting it
-// spread over them would make the box change width every time the range is
-// tabbed. It scrolls instead.
+// MaxCols is the widest a chart is ever drawn: two days of hourly readings.
+// Longer ranges scroll rather than widening the box.
 const MaxCols = 48
 
-// Fits reports how many columns a chart can show in the given terminal width.
-// A line is the gutter, then one Step per column — bar the single blank the
-// right wall takes over from the last of them — and then that wall. The count
-// stops at MaxCols however much room there is.
+// Fits reports how many columns a chart can show in the given terminal width,
+// capped at MaxCols.
 func Fits(width int) int {
 	n := (width - AxisW) / Step
 	if n < 1 {

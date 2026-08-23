@@ -33,8 +33,8 @@ func TestParseGlyphMode(t *testing.T) {
 	}
 }
 
-// The flag and the environment variable are the two ways to settle the
-// question outright, and neither may reach for the terminal.
+// The flag and the environment variable settle it outright, and neither may
+// reach for the terminal.
 func TestGlyphModeOverridesTheChecks(t *testing.T) {
 	t.Setenv(glyphEnv, "plain")
 	if !NerdFont(GlyphNerd) {
@@ -52,7 +52,7 @@ func TestGlyphModeOverridesTheChecks(t *testing.T) {
 	}
 }
 
-// A console with a built-in font is the one case that needs no probing.
+// A console with a built-in font needs no probing.
 func TestBuiltInConsoleFontsGetASCII(t *testing.T) {
 	t.Setenv(glyphEnv, "")
 	for _, term := range []string{"linux", "dumb", ""} {
@@ -97,8 +97,7 @@ func TestCursorColAndFontReply(t *testing.T) {
 	}
 }
 
-// Without a Nerd Font the sky row must still be one cell a column, or the
-// braille grid under it shears.
+// Without a Nerd Font the sky row must still be one cell a column.
 func TestPlainSkyRowKeepsTheGrid(t *testing.T) {
 	a := newTestApp(t, 120, 30, 48)
 	nerd := render.Plain(render.Sky(a.cols, render.Opts{Count: 12, Nerd: true}))

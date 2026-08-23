@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// Config is the on-disk state: where to open, and what to offer quickly.
+// Config is the on-disk state.
 type Config struct {
 	Default    *Place  `json:"default,omitempty"`
 	Favourites []Place `json:"favourites,omitempty"`
@@ -21,8 +21,7 @@ func ConfigPath(app string) (string, error) {
 	return filepath.Join(dir, app, "config.json"), nil
 }
 
-// Load reads the config. A missing file is not an error: it yields an empty
-// config, so a first run behaves like a configured one with no favourites.
+// Load reads the config; a missing file yields an empty config, not an error.
 func Load(app string) (*Config, error) {
 	path, err := ConfigPath(app)
 	if err != nil {
@@ -55,8 +54,8 @@ func (c *Config) Save(app string) error {
 	if err != nil {
 		return err
 	}
-	// Write through a temporary file so an interrupted save cannot truncate
-	// the existing config.
+	// Write via a temporary file so an interrupted save cannot truncate the
+	// existing config.
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, append(body, '\n'), 0o644); err != nil {
 		return err
@@ -64,8 +63,7 @@ func (c *Config) Save(app string) error {
 	return os.Rename(tmp, path)
 }
 
-// Toggle adds a place to the favourites, or removes it if already present.
-// It reports whether the place is a favourite afterwards.
+// Toggle adds or removes a favourite, reporting whether it is one afterwards.
 func (c *Config) Toggle(p Place) bool {
 	for i, f := range c.Favourites {
 		if f.Same(p) {
