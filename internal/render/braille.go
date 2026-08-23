@@ -249,6 +249,12 @@ func Chart(cols []Column, sc Scale, o Opts) []Line {
 // every panel's numbers stand in the same column whatever they measure.
 func Gutter(label string) string { return fmt.Sprintf("%*s", AxisCol, label) }
 
+// rowLabel names one of the rows that hang under the boxes — the hours, the
+// sky symbols, the readings — in the same gutter the panels' scales stand in.
+// It is dim, so the names introduce their rows without competing with them,
+// and an empty name is simply the blank gutter those rows carried before.
+func rowLabel(name string) Span { return Span{Gutter(name) + "  ", Dim} }
+
 // Rule is the line that closes a panel's box, meeting each day divider with a
 // tick. Every stacked panel draws its own, so each keeps its own y-axis, and
 // each carries the bottom of that axis in its gutter: the rule is the line the
@@ -292,7 +298,7 @@ func HourLabels(cols []Column, o Opts) []Line {
 		x := (o.Cursor - lo) * Step
 		avoid = append(avoid, x-1, x+Step-2)
 	}
-	days := labelRow(n, FG, func(i int) (string, string) {
+	days := labelRow(n, "", FG, func(i int) (string, string) {
 		// The leftmost column always names its day, whether or not one begins
 		// there. Scrolled into the middle of a Tuesday the row would otherwise
 		// stay blank until the next midnight came into view.
@@ -301,7 +307,7 @@ func HourLabels(cols []Column, o Opts) []Line {
 		}
 		return cols[lo+i].At.Format("Mon 02"), cols[lo+i].At.Format("02")
 	}, avoid...)
-	hours := labelRow(n, Grey, func(i int) (string, string) {
+	hours := labelRow(n, "time", Grey, func(i int) (string, string) {
 		return cols[lo+i].At.Format("15"), ""
 	})
 	return []Line{days, hours}
@@ -314,7 +320,7 @@ func TempLabels(cols []Column, o Opts) Line {
 	if lo == hi {
 		return nil
 	}
-	line := Line{{strings.Repeat(" ", AxisW), Grey}}
+	line := Line{rowLabel("temp")}
 	for i := lo; i < hi; i++ {
 		c := cols[i]
 		if !c.Temp.OK {
@@ -343,7 +349,7 @@ func Axis(cols []Column, sc Scale, o Opts) []Line {
 // columns' space, so when two fall close together the earlier one falls back
 // to its short form; the script this replaces simply printed them on top of
 // each other ("Sat 22Sun 23").
-func labelRow(n int, col Colour, at func(i int) (full, short string), avoid ...int) Line {
+func labelRow(n int, name string, col Colour, at func(i int) (full, short string), avoid ...int) Line {
 	// Columns the cursor frame owns: a label that would be cut by one falls
 	// back to its short form.
 	blocked := func(start, width int) bool {
@@ -385,7 +391,7 @@ func labelRow(n int, col Colour, at func(i int) (full, short string), avoid ...i
 			row[start+j] = r
 		}
 	}
-	return Line{{strings.Repeat(" ", AxisW), Grey},
+	return Line{rowLabel(name),
 		{strings.TrimRight(string(row), " "), col}}
 }
 

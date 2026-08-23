@@ -16,8 +16,8 @@ func Sky(cols []Column, o Opts) []Line {
 	}
 
 	// The symbols hang under the axis, outside the chart's box, so the gutter
-	// is blank rather than a wall.
-	sym := Line{Span{strings.Repeat(" ", AxisW), Grey}}
+	// names the row rather than closing it with a wall.
+	sym := Line{rowLabel("symb")}
 	for i := lo; i < hi; i++ {
 		s := fmi.Describe(cols[i].Sym, cols[i].Night)
 		sym = append(sym, Span{string(s.Rune(o.Nerd)) + " ",

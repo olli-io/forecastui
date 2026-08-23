@@ -3,7 +3,6 @@ package render
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/olli-io/forecastui/internal/fmi"
 )
@@ -14,21 +13,22 @@ import (
 // of its own, unlabelled: it is there to be read against the other columns'
 // chances, and putting a second scale in the gutter would only invite it to be
 // read against the millimetres. The panel hangs between the temperature chart
-// and the wind panel, on the same time line, and a dry forecast draws nothing
-// at all — the legend says so instead of a strip of empty box saying it for
-// eighteen columns running.
+// and the wind panel, on the same time line, and it is drawn even when the
+// forecast is dry from end to end: an empty strip on a fixed row keeps the
+// stack from shifting under the reader as a wet hour scrolls in or out, and
+// the chance column still has something to say about a dry hour.
 func Rain(cols []Column, sc Scale, o Opts) []Line {
 	if o.CellH <= 0 {
 		o.CellH = 4
 	}
 	lo, hi := window(len(cols), o.Start, o.Count)
-	if lo == hi || sc.RainMax <= 0 {
+	if lo == hi {
 		return nil
 	}
 	dots := o.CellH * 4
 
 	bar := func(mm float64) int {
-		if mm <= 0 {
+		if mm <= 0 || sc.RainMax <= 0 {
 			return 0
 		}
 		return max(1, int(math.Round(mm/sc.RainMax*float64(dots))))
@@ -70,15 +70,14 @@ func Rain(cols []Column, sc Scale, o Opts) []Line {
 // temperature row. A dry hour still prints its 0, in grey rather than blue, so
 // the row keeps a number under every column and the eye can run along it —
 // which is also how a wet hour that rounds down to zero stays distinguishable
-// from a dry one. Only a forecast that is dry from end to end drops the row
-// altogether, which keeps it from appearing and vanishing as the window
-// scrolls.
+// from a dry one. A forecast that is dry from end to end keeps the row too, so
+// it never appears and vanishes as the window scrolls.
 func RainLabels(cols []Column, sc Scale, o Opts) Line {
 	lo, hi := window(len(cols), o.Start, o.Count)
-	if lo == hi || sc.RainMax <= 0 {
+	if lo == hi {
 		return nil
 	}
-	line := Line{{strings.Repeat(" ", AxisW), Grey}}
+	line := Line{rowLabel("rain")}
 	for i := lo; i < hi; i++ {
 		// Blue means it rains, whatever the rounding says: an hour of drizzle
 		// prints a blue 0, and only a dry hour gets the grey one.

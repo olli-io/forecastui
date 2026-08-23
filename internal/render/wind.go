@@ -102,7 +102,7 @@ func WindDirs(cols []Column, o Opts) Line {
 	if lo == hi {
 		return nil
 	}
-	return labelRow(hi-lo, Grey, func(i int) (string, string) {
+	return labelRow(hi-lo, "wdir", Grey, func(i int) (string, string) {
 		c := cols[lo+i]
 		if !c.Dir.OK {
 			return "", ""
@@ -120,7 +120,7 @@ func WindSpeeds(cols []Column, o Opts) Line {
 	if lo == hi {
 		return nil
 	}
-	line := Line{{strings.Repeat(" ", AxisW), Grey}}
+	line := Line{rowLabel("wind")}
 	for i := lo; i < hi; i++ {
 		c := cols[i]
 		if !c.Wind.OK {

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -86,14 +87,27 @@ func TestWindPanelNeedsWind(t *testing.T) {
 	}
 }
 
-func TestRainPanelNeedsRain(t *testing.T) {
+func TestRainPanelAlwaysDrawn(t *testing.T) {
 	cols := []Column{{At: time.Now(), Temp: fmi.Val{V: 5, OK: true}}}
-	if Rain(cols, NewScale(cols), Opts{}) != nil {
-		t.Error("a dry forecast should draw no rain panel")
+	dry := Rain(cols, NewScale(cols), Opts{})
+	if dry == nil {
+		t.Fatal("a dry forecast should still draw the rain panel")
+	}
+	if RainLabels(cols, NewScale(cols), Opts{}) == nil {
+		t.Error("a dry forecast should still draw the rate row")
+	}
+	for i, l := range dry {
+		if strings.ContainsAny(l.Plain(), "⣿⣀⡀⠄") {
+			t.Errorf("dry rain line %d has bars: %q", i, l.Plain())
+		}
 	}
 	cols[0].Rain = 0.4
-	if Rain(cols, NewScale(cols), Opts{}) == nil {
-		t.Error("a wet forecast should draw one")
+	wet := Rain(cols, NewScale(cols), Opts{})
+	if wet == nil {
+		t.Fatal("a wet forecast should draw one")
+	}
+	if len(wet) != len(dry) {
+		t.Errorf("wet panel is %d lines, dry one %d", len(wet), len(dry))
 	}
 }
 

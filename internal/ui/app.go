@@ -443,7 +443,8 @@ func (a *App) chartView() string {
 	zeroRule := render.Rule(a.cols, opts, "0")
 	hours := render.HourLabels(a.cols, opts)
 	temps := render.TempLabels(a.cols, opts)
-	// The rain row is absent on a dry forecast, so it is measured, not assumed.
+	// The rain row is absent only on an empty window, so it is measured rather
+	// than assumed.
 	rains := render.RainLabels(a.cols, a.scale, opts)
 	frame := 0
 	if a.cursor >= a.scroll && a.cursor < a.scroll+a.visible() {

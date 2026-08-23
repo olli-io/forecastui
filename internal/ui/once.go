@@ -82,8 +82,8 @@ func Once(place geo.Place, hours []fmi.Hour, span Span, width int, nerd bool) (s
 	zero := render.Rule(cols, o, "0")
 	stack := append([]render.Line{}, render.Chart(cols, sc, withHeight(o, chartCells))...)
 	stack = append(stack, render.Rule(cols, o, fmt.Sprintf("%.1f°C", sc.Lo)))
-	// The rain panel is skipped outright on a dry forecast; the legend below
-	// still reports that there is none.
+	// The rain panel is drawn whether or not it rains; only an empty window
+	// leaves it out.
 	if rain := render.Rain(cols, sc, withHeight(o, panelCells)); rain != nil {
 		stack = append(stack, rain...)
 		stack = append(stack, zero)
