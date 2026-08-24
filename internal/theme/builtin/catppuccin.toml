@@ -1,0 +1,11 @@
+# catppuccin mocha
+fg     = "#cdd6f4"
+grey   = "#7f849c"
+dim    = "#45475a"   # faint accent: probability of precipitation, cursor frame
+purple = "#cba6f7"   # coldest temperatures
+aqua   = "#94e2d5"
+green  = "#a6e3a1"
+yellow = "#f9e2af"
+orange = "#fab387"
+red    = "#f38ba8"   # hottest temperatures, thunder
+blue   = "#89b4fa"   # rain

@@ -1,0 +1,11 @@
+# nord
+fg     = "#d8dee9"
+grey   = "#616e88"
+dim    = "#434c5e"   # faint accent: probability of precipitation, cursor frame
+purple = "#b48ead"   # coldest temperatures
+aqua   = "#8fbcbb"
+green  = "#a3be8c"
+yellow = "#ebcb8b"
+orange = "#d08770"
+red    = "#bf616a"   # hottest temperatures, thunder
+blue   = "#88c0d0"   # rain

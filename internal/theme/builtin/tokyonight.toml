@@ -1,0 +1,11 @@
+# tokyonight night
+fg     = "#c0caf5"
+grey   = "#565f89"
+dim    = "#3b4261"   # faint accent: probability of precipitation, cursor frame
+purple = "#bb9af7"   # coldest temperatures
+aqua   = "#2ac3de"
+green  = "#9ece6a"
+yellow = "#e0af68"
+orange = "#ff9e64"
+red    = "#f7768e"   # hottest temperatures, thunder
+blue   = "#7aa2f7"   # rain

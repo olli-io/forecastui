@@ -1,0 +1,11 @@
+# kanagawa wave
+fg     = "#dcd7ba"
+grey   = "#727169"
+dim    = "#54546d"   # faint accent: probability of precipitation, cursor frame
+purple = "#957fb8"   # coldest temperatures
+aqua   = "#7aa89f"
+green  = "#98bb6c"
+yellow = "#e6c384"
+orange = "#ffa066"
+red    = "#ff5d62"   # hottest temperatures, thunder
+blue   = "#7e9cd8"   # rain

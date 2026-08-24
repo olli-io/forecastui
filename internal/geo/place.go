@@ -6,9 +6,9 @@ import "fmt"
 
 // Place is a named point.
 type Place struct {
-	Name string  `json:"name"`
-	Lat  float64 `json:"lat"`
-	Lon  float64 `json:"lon"`
+	Name string  `json:"name" toml:"name"`
+	Lat  float64 `json:"lat" toml:"lat"`
+	Lon  float64 `json:"lon" toml:"lon"`
 }
 
 // Label is how a place is shown in the UI.

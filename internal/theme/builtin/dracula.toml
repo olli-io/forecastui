@@ -1,0 +1,13 @@
+# dracula
+fg     = "#f8f8f2"
+grey   = "#6272a4"
+dim    = "#44475a"   # faint accent: probability of precipitation, cursor frame
+purple = "#bd93f9"   # coldest temperatures
+aqua   = "#8be9fd"
+green  = "#50fa7b"
+yellow = "#f1fa8c"
+orange = "#ffb86c"
+red    = "#ff5555"   # hottest temperatures, thunder
+# Dracula has one blue-green: the rain graph and the cold end of the
+# temperature ramp share it, and never stand in the same panel.
+blue   = "#8be9fd"   # rain

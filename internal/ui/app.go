@@ -40,6 +40,7 @@ const (
 	modeChart mode = iota
 	modeSearch
 	modeFav
+	modeTheme
 )
 
 // ranges are what tab toggles between.
@@ -74,6 +75,7 @@ type App struct {
 
 	search searchState
 	fav    favState
+	themes themeState
 }
 
 // New builds the root model. nerd is settled once at startup; the font cannot
@@ -242,6 +244,8 @@ func (a *App) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.searchKey(k)
 	case modeFav:
 		return a.favKey(k)
+	case modeTheme:
+		return a.themeKey(k)
 	}
 	switch k.String() {
 	case "q", "ctrl+c", "esc":
@@ -287,6 +291,10 @@ func (a *App) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case "F":
 		return a.toggleFavourite()
+
+	case "t":
+		a.openThemes()
+		return a, nil
 	}
 	return a, nil
 }
@@ -393,6 +401,8 @@ func (a *App) render() string {
 		return a.overlay(a.searchWindow())
 	case modeFav:
 		return a.overlay(a.favWindow())
+	case modeTheme:
+		return a.overlay(a.themeWindow())
 	}
 	return a.chartView()
 }
@@ -611,6 +621,8 @@ type hint struct{ key, what string }
 func (a *App) chartHints() []hint {
 	return a.fitHints(
 		[]hint{{"←→", "hour"}, {"↑↓", "day"}, {"tab", "range"}, {"/", "place"},
+			{"f", "favs"}, {"t", "theme"}, {"r", "refresh"}, {"q", "quit"}},
+		[]hint{{"←→", "hour"}, {"↑↓", "day"}, {"tab", "range"}, {"/", "place"},
 			{"f", "favs"}, {"r", "refresh"}, {"q", "quit"}},
 		[]hint{{"←→", "hour"}, {"tab", "range"}, {"/", "place"}, {"f", "favs"},
 			{"q", "quit"}},
@@ -647,6 +659,11 @@ func (a *App) footerHints() []hint {
 				{"esc", "close"}},
 			[]hint{{"↑↓", ""}, {"↵", "go"}, {"x", "unstar"}, {"esc", "close"}},
 			[]hint{{"↵", "go"}, {"x", "unstar"}, {"esc", ""}})
+	case modeTheme:
+		return a.fitHints(
+			[]hint{{"↑↓", "preview"}, {"↵", "keep"}, {"esc", "cancel"}},
+			[]hint{{"↑↓", ""}, {"↵", "keep"}, {"esc", "cancel"}},
+			[]hint{{"↵", "keep"}, {"esc", ""}})
 	}
 	return []hint{{"esc", "back"}, {"q", "quit"}}
 }

@@ -1,0 +1,11 @@
+# gruvbox material, dark medium
+fg     = "#d5c4a1"
+grey   = "#7c6f64"
+dim    = "#504945"   # faint accent: probability of precipitation, cursor frame
+purple = "#d3869b"   # coldest temperatures
+aqua   = "#89b482"
+green  = "#a9b665"
+yellow = "#d8a657"
+orange = "#e78a4e"
+red    = "#ea6962"   # hottest temperatures, thunder
+blue   = "#7daea3"   # rain

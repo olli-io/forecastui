@@ -17,6 +17,7 @@ import (
 	"github.com/olli-io/forecastui/internal/cache"
 	"github.com/olli-io/forecastui/internal/fmi"
 	"github.com/olli-io/forecastui/internal/geo"
+	"github.com/olli-io/forecastui/internal/theme"
 	"github.com/olli-io/forecastui/internal/ui"
 )
 
@@ -40,11 +41,23 @@ func run() error {
 		width  = flag.Int("width", 0, "output width for -once (default: terminal width)")
 		glyphs = flag.String("glyphs", "auto",
 			"weather symbols: auto, nerd (Nerd Font glyphs) or plain (ASCII)")
+		themeName = flag.String("theme", "",
+			"colour theme: a name from the themes directory, or a path to a .toml file")
 	)
 	flag.Usage = usage
 	flag.Parse()
 
-	loc, span, err := resolve(positional(flag.CommandLine), *place, *lat, *lon, *hours, *week)
+	cfg, _ := geo.Load(appName) // a missing or broken config is not fatal
+	pinTheme(cfg)
+
+	// The flag beats the environment beats the config, as everywhere else.
+	t, err := theme.Load(appName, first(*themeName, os.Getenv("FORECASTUI_THEME"), cfg.Theme))
+	if err != nil {
+		return err
+	}
+	ui.Use(t)
+
+	loc, span, err := resolve(positional(flag.CommandLine), cfg, *place, *lat, *lon, *hours, *week)
 	if err != nil {
 		return err
 	}
@@ -61,10 +74,35 @@ func run() error {
 		return runOnce(loc, span, *width, nerd)
 	}
 
-	cfg, _ := geo.Load(appName) // a missing or broken config is not fatal
 	m := ui.New(loc, span, cfg, nerd)
 	_, err = tea.NewProgram(m).Run()
 	return err
+}
+
+// pinTheme names the fallback theme in a config.toml that does not exist yet,
+// so an install lands with its theme written where it will be found and
+// changed, rather than implied by the binary. A config already on disk is left
+// alone, themed or not.
+func pinTheme(cfg *geo.Config) {
+	path, err := geo.ConfigPath(appName)
+	if err != nil {
+		return
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		return
+	}
+	cfg.Theme = theme.FallbackName
+	_ = cfg.Save(appName) // best effort: the fallback applies either way
+}
+
+// first returns the first value that was set.
+func first(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // positional collects non-flag arguments, allowing flags to follow them.
@@ -113,7 +151,7 @@ var defaultPlace = geo.Place{Name: "Turku", Lat: 60.4518, Lon: 22.2666}
 
 // resolve merges flags, positional arguments ([hours|week] [lon lat]) and
 // config into a location and a span.
-func resolve(args []string, place string, lat, lon float64, hours int, week bool) (geo.Place, ui.Span, error) {
+func resolve(args []string, cfg *geo.Config, place string, lat, lon float64, hours int, week bool) (geo.Place, ui.Span, error) {
 	if len(args) > 0 {
 		switch args[0] {
 		case "week", "w":
@@ -161,7 +199,7 @@ func resolve(args []string, place string, lat, lon float64, hours int, week bool
 		return geo.Place{Name: fmt.Sprintf("%g, %g", lat, lon), Lat: lat, Lon: lon}, span, nil
 	}
 
-	if cfg, err := geo.Load(appName); err == nil && cfg.Default != nil {
+	if cfg != nil && cfg.Default != nil {
 		return *cfg.Default, span, nil
 	}
 	return defaultPlace, span, nil

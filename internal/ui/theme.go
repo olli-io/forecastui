@@ -9,32 +9,48 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/olli-io/forecastui/internal/render"
+	"github.com/olli-io/forecastui/internal/theme"
 )
 
-// gruvbox material (dark, medium) accents.
-var palette = map[render.Colour]color.Color{
-	render.Grey:   lipgloss.Color("#7c6f64"),
-	render.FG:     lipgloss.Color("#d5c4a1"),
-	render.Purple: lipgloss.Color("#d3869b"),
-	render.Aqua:   lipgloss.Color("#89b482"),
-	render.Green:  lipgloss.Color("#a9b665"),
-	render.Yellow: lipgloss.Color("#d8a657"),
-	render.Orange: lipgloss.Color("#e78a4e"),
-	render.Red:    lipgloss.Color("#ea6962"),
-	render.Blue:   lipgloss.Color("#7daea3"),
-	render.Dim:    lipgloss.Color("#504945"),
+// The palette in force. It starts on the shipped default so anything rendered
+// before Use is called still has colours to draw with.
+var (
+	active  = theme.Fallback()
+	palette = active.Colours
+	styles  = build(palette)
+)
+
+// Use installs a theme. Startup settles one before the program takes the
+// screen; the picker calls it again from Update, which is the only other place
+// it may be called from — these are package globals with no lock, and Bubble
+// Tea's own goroutine is the one that reads them to draw.
+func Use(t *theme.Theme) {
+	active = t
+	palette = t.Colours
+	styles = build(palette)
 }
 
-var styles = func() map[render.Colour]lipgloss.Style {
-	m := make(map[render.Colour]lipgloss.Style, len(palette))
-	for k, c := range palette {
+// Active is the theme in force, so the picker can open on the row the chart is
+// already wearing.
+func Active() *theme.Theme { return active }
+
+// ActiveName is the name of the theme in force.
+func ActiveName() string { return active.Name }
+
+func build(p map[render.Colour]color.Color) map[render.Colour]lipgloss.Style {
+	m := make(map[render.Colour]lipgloss.Style, len(p))
+	for k, c := range p {
 		m[k] = lipgloss.NewStyle().Foreground(c)
 	}
 	return m
-}()
+}
 
 // Style returns the lipgloss style for a palette slot.
 func Style(c render.Colour) lipgloss.Style { return styles[c] }
+
+// Colour returns a palette slot as a plain colour, for the places one is not
+// worn as a foreground style: a highlight band, a cursor.
+func Colour(c render.Colour) color.Color { return palette[c] }
 
 // Paint renders lines with colour, clipped to width so no line wraps and
 // shears the braille grid. A width of zero means no limit.

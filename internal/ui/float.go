@@ -108,7 +108,7 @@ func (a *App) overlay(w window) string {
 // highlight paints a line onto a background band, padded the whole way to the
 // given width so it reads as a picked row rather than a smudge.
 func highlight(l render.Line, w int, bg render.Colour) string {
-	back := palette[bg]
+	back := Colour(bg)
 	var b strings.Builder
 	used := 0
 	for _, s := range l.Truncate(w) {

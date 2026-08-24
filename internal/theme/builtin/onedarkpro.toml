@@ -1,0 +1,11 @@
+# one dark pro
+fg     = "#abb2bf"
+grey   = "#5c6370"
+dim    = "#3e4451"   # faint accent: probability of precipitation, cursor frame
+purple = "#c678dd"   # coldest temperatures
+aqua   = "#56b6c2"
+green  = "#98c379"
+yellow = "#e5c07b"
+orange = "#d19a66"
+red    = "#e06c75"   # hottest temperatures, thunder
+blue   = "#61afef"   # rain

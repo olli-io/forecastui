@@ -1,0 +1,11 @@
+# everforest, dark medium
+fg     = "#d3c6aa"
+grey   = "#859289"
+dim    = "#4f585e"   # faint accent: probability of precipitation, cursor frame
+purple = "#d699b6"   # coldest temperatures
+aqua   = "#83c092"
+green  = "#a7c080"
+yellow = "#dbbc7f"
+orange = "#e69875"
+red    = "#e67e80"   # hottest temperatures, thunder
+blue   = "#7fbbb3"   # rain

@@ -54,6 +54,9 @@ func TestFavouritesWindowFloatsOverTheChart(t *testing.T) {
 // The compositor clips to the screen, so a window can never shear the grid
 // under it.
 func TestFloatingWindowsFitTheTerminal(t *testing.T) {
+	// The theme list is read from disk; a temporary one keeps the sweep off
+	// whatever the developer has dropped into their own themes directory.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	for _, size := range [][2]int{{20, 8}, {40, 12}, {60, 20}, {80, 24}, {100, 16}, {200, 50}} {
 		w, h := size[0], size[1]
 		a := newTestApp(t, w, h, 48)
@@ -66,6 +69,7 @@ func TestFloatingWindowsFitTheTerminal(t *testing.T) {
 		}{
 			{"search", func() { withResults(t, a, "A very long place name indeed, somewhere") }},
 			{"favourites", a.openFavourites},
+			{"theme", a.openThemes},
 		} {
 			open.do()
 			lines := strings.Split(a.render(), "\n")

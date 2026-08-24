@@ -1,0 +1,12 @@
+# Follows the terminal's own sixteen colours, so the chart matches whatever
+# scheme the terminal is set to.
+fg     = "default"        # the terminal's foreground
+grey   = "white"          # ANSI 7, light grey in most schemes
+dim    = "bright-black"   # ANSI 8, dark grey
+purple = "magenta"        # coldest temperatures
+aqua   = "cyan"
+green  = "green"
+yellow = "yellow"
+orange = "bright-red"     # no orange in the sixteen; it sits between yellow and red
+red    = "red"            # hottest temperatures, thunder
+blue   = "blue"           # rain

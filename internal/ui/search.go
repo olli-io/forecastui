@@ -56,12 +56,25 @@ func (a *App) openSearch() {
 		s.input = textinput.New()
 		s.input.Prompt = "/ "
 		s.input.Placeholder = "Turku, Tromsø, Kiruna…"
+		s.input.SetStyles(inputStyles())
 		s.ready = true
 	}
 	s.input.Focus()
 	s.input.SetValue("")
 	s.results, s.selected, s.err, s.busy = nil, 0, nil, false
 	a.mode = modeSearch
+}
+
+// inputStyles dresses the search prompt in the theme. Left alone, bubbles
+// paints it in its own colours, which no theme would match.
+func inputStyles() textinput.Styles {
+	st := textinput.DefaultStyles(true)
+	st.Focused.Prompt = Style(render.Yellow)
+	st.Focused.Text = Style(render.FG)
+	st.Focused.Placeholder = Style(render.Dim)
+	st.Blurred = st.Focused
+	st.Cursor.Color = Colour(render.FG)
+	return st
 }
 
 // openFavourites stands on whichever entry is already on screen, so opening it
