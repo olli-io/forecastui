@@ -1,14 +1,27 @@
 #!/usr/bin/env bash
 # Install forecastui into ~/.local/bin (override with PREFIX or BINDIR, pick a
-# release with VERSION). Falls back to a source build, which needs Go and git.
+# release with VERSION). Falls back to a source build, which needs Go and git;
+# --build skips the release and builds the local checkout.
 set -euo pipefail
 
 repo=olli-io/forecastui
 bindir=${BINDIR:-${PREFIX:-$HOME/.local}/bin}
 version=${VERSION:-}
+build=0
+
+usage() { echo "usage: ${0##*/} [--build]"; }
 
 die() { echo "forecastui: $*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --build) build=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "unknown option: $1" ;;
+  esac
+  shift
+done
 
 # One trap for the whole run: a download falling through to a source build makes
 # two temporary directories, and a second trap would forget the first.
@@ -129,10 +142,14 @@ from_source() {
   install_bin "$src_dir/$bin" "$bin"
 }
 
-from_release || {
-  echo "no release binary available, building from source..." >&2
+if [ "$build" -eq 1 ]; then
   from_source
-}
+else
+  from_release || {
+    echo "no release binary available, building from source..." >&2
+    from_source
+  }
+fi
 
 case ":$PATH:" in
   *":$bindir:"*) ;;
