@@ -180,15 +180,17 @@ func Chart(cols []Column, sc Scale, o Opts) []Line {
 	var out []Line
 	for r := 0; r < o.CellH; r++ {
 		// Only the top of the scale is labelled here; the bottom belongs on the
-		// rule under the panel, where the bars actually stand.
-		var label string
+		// rule under the panel, where the bars actually stand. The panel's name
+		// hangs two blank rows below that, unless the zero line has claimed the
+		// row; a chart squeezed shorter than four cells goes unnamed.
+		label, labelCol := Gutter(""), Grey
 		switch {
 		case r == 0:
 			label = Gutter(fmt.Sprintf("%.1f°C", sc.Hi))
 		case r == zeroRow:
 			label = Gutter("0°C")
-		default:
-			label = Gutter("")
+		case r == 3:
+			label, labelCol = Gutter("temp "), Dim
 		}
 		axis := vert
 		if r == zeroRow {
@@ -200,7 +202,7 @@ func Chart(cols []Column, sc Scale, o Opts) []Line {
 		if z != 0 {
 			pad = string(brailleBase + z)
 		}
-		line := Line{{label + axis + pad, Grey}}
+		line := Line{{label, labelCol}, {axis + pad, Grey}}
 		for i := lo; i < hi; i++ {
 			c := cols[i]
 			for _, bar := range [2]struct {

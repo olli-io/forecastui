@@ -38,11 +38,14 @@ func Rain(cols []Column, sc Scale, o Opts) []Line {
 
 	var out []Line
 	for r := 0; r < o.CellH; r++ {
-		label := Gutter("")
-		if r == 0 {
+		label, labelCol := Gutter(""), Grey
+		switch r {
+		case 0:
 			label = rateLabel(sc.RainMax)
+		case 2:
+			label, labelCol = Gutter("rain "), Dim
 		}
-		line := Line{{label + vert + " ", Grey}}
+		line := Line{{label, labelCol}, {vert + " ", Grey}}
 
 		for i := lo; i < hi; i++ {
 			c := cols[i]
